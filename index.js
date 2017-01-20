@@ -1,9 +1,9 @@
 var express = require('express');
+var formidable = require('formidable');
 var http = require('http');
 var path = require('path');
 var fs = require('fs');
 var os = require('os');
-var fileUpload = require('express-fileupload');
 var app = express();
 
 //Port
@@ -32,48 +32,63 @@ var publicPath = path.join(__dirname, 'public');
 
 //For index. Basically app.get('/',...);
 app.use(express.static(publicPath));
-app.use('/f',express.static(filePath));
 
-// default options
-app.use(fileUpload());
+//For downloading files
+app.use('/f',express.static(filePath));
  
 app.post('/', function(req, res) {
-    var fileToUpload;
- 
-    if (!req.files) {
-        //TODO redirect with error info in query.
-        res.send('No files were uploaded.');
-        return;
-    }
- 
-    fileToUpload = req.files.fileToUpload;
-    var fileName = fileToUpload.name;
-    var splitted = fileName.split(".");
-    var extension, name;
-    if(splitted.length > 1) {
-        extension = splitted[splitted.length-1];
-        name = "";
-        for (var i = 0; i < splitted.length-1; i++) {
-            name += splitted[i];
-        }
-    } else {
-        extension = "";
-        name = fileName;
-    }
     
-    //For not overriting files. 
-    var i = 0;
-    while(fs.existsSync(path.join(filePath, fileName))){
-        fileName = name + " dup" + (i++) + "." + extension;
-    }
+    var form = new formidable.IncomingForm();
     
-    fileToUpload.mv(path.join(filePath, fileName), function(err) {
-        if (err) {
-            res.redirect('/?error=1');
+    form.parse(req);
+    
+    form.on('fileBegin', function (name, file){
+        
+        var fileName = file.name;
+        var splitted = fileName.split(".");
+        var extension, name;
+        if(splitted.length > 1) {
+            extension = splitted[splitted.length-1];
+            name = "";
+            for (var i = 0; i < splitted.length-1; i++) {
+                name += splitted[i];
+            }
         } else {
-            res.redirect('/?success=' + encodeURIComponent(fileName));
+            extension = "";
+            name = fileName;
+        }
+        
+        //For not overwriting files.
+        var i = 0;
+        while(fs.existsSync(path.join(filePath, fileName))){
+            fileName = name + " dup" + (i++) + "." + extension;
+        }
+        
+        file.path = path.join(filePath, fileName);
+        file.finalName = fileName;
+        
+    });
+    
+    form.on('file', function (name, file){
+        //console.log('Uploaded ' + file.finalName);
+        res.redirect('/?success=' + encodeURIComponent(file.finalName));
+    });
+    
+    form.on('error', function(err) {
+        res.redirect('/?error=1');
+    });
+    
+    var progress = 0;
+    
+    form.on('progress', function(bytesReceived, bytesExpected) {
+        //TODO: connect to UI when writing the electron app.
+        var temp = bytesReceived * 100 / bytesExpected;
+        if (temp > (progress + 10)) {
+            progress = Math.floor(temp);
+            console.log("Progress: "+Math.floor(progress)+"%");
         }
     });
+
 });
 
 app.get('/info',function(req, res) {
@@ -97,7 +112,11 @@ app.get('/info',function(req, res) {
     
 });
 
+
+
 /*******************************************************/
+
+
 
 // catch 404
 app.use(function(req, res, next) {
