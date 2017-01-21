@@ -151,7 +151,7 @@
     }
     if(addresses.length > 1){
       for (var i = 1; i < addresses.length; i++) {
-        temp = [", ",addresses[0],":",port].join("");
+        temp += [", ",addresses[i],":",port].join("");
       }
     }
     IPandPort.innerText = temp;

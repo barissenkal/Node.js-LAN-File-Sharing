@@ -1,9 +1,10 @@
 var http = require('http');
 
 var shareSettings = require('./fileshare')({
+    port:8080,
 	progressCallback: function(progress,fileName) {
-      //TODO: connect to UI when writing the electron app.
-      console.log("Progress: "+fileName+" "+Math.floor(progress)+"%");
+            //TODO: connect to UI when writing the electron app.
+            console.log("Progress: "+fileName+" "+Math.floor(progress)+"%");
  	},
  	errorCallback: function (err) {
  		console.error(err);

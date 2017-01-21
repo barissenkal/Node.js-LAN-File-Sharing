@@ -1,13 +1,144 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta charset="UTF-8">
-    <title>Hello World!</title>
+<head>
+  <meta charset="utf-8">
+  <title>The LAN File Uploader</title>
+  
+  <link rel="apple-touch-icon" sizes="180x180" href="./public/icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" href="./public/icons/favicon-32x32.png" sizes="32x32">
+  <link rel="icon" type="image/png" href="./public/icons/favicon-16x16.png" sizes="16x16">
+  <link rel="manifest" href="./public/icons/manifest.json">
+  <link rel="mask-icon" href="./public/icons/safari-pinned-tab.svg" color="#006900">
+  <meta name="theme-color" content="#006900">
+  
+  <link rel="stylesheet" type="text/css" href="./public/css/bootstrap.min.css">
+  
+  <style type="text/css">
+  body {
+    margin:0;
+    height: 100vh;
+    width: 100vw;
+  }
+  .noselect {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -khtml-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+  
+  #IPandPort {
+    color: #0af;
+    font-family: monospace;
+    line-height: 40px;
+  }
+  </style>
+  
   </head>
   <body>
-    <h1>Hello World!</h1>
-    We are using node <script>document.write(process.versions.node)</script>,
-    Chrome <script>document.write(process.versions.chrome)</script>,
-    and Electron <script>document.write(process.versions.electron)</script>.
+  
+    <div class="container">
+      <div class="row">
+        <div class="col-lg-4 col-lg-offset-4 col-md-6 col-md-offset-3 col-sm-12 text-center">
+          <h1 class="text-center">The File Uploader</h1>
+          <h4 id="IPandPort"></h4>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-lg-4 col-lg-offset-4 col-md-6 col-md-offset-3 col-sm-12 text-center">
+          
+          <div id="fileList" class="list-group">
+          </div>
+          
+        </div>
+      </div>
+    </div>
+    
+    <button onclick="selectFilesPath();">Select folder path</button>
+    <button onclick="main.startServer();">Start</button>
+    <br>TODO: don’t have duplicate code in electron-index and index. Put seperate js in two files and have same html. (use !!window["require"] to determine web vs electron)
+    <br>
+    <br>TODO: allow changing port and folder path before start.
+    <br>TODO: If port is used, in a dialog ask if user wants a new random port (shown in dialog) or to cancel.
+    <br>TODO: Try to have ABAB port numbers.
+    <br>TODO: remember last used port when re-opened.
+    <br>TODO: have stop button.
+    <br>
+    <br><button onclick="openFilesPath();">Open files path</button>
+    
+    
+    <script type="text/javascript">
+        
+    const path = require('path');
+    const fs = require('fs');
+    const remote = require('electron').remote;
+    const main = remote.require('./electron.js');
+    let fileShare = main.fileShare;
+    
+    var IPandPort = document.getElementById('IPandPort');
+    
+    const updatePageFromFileShare = function () {
+      var addresses = fileShare.addresses;
+      var port = fileShare.port;
+      
+      var temp = "";
+      if(addresses.length > 0){
+        temp = [addresses[0],port].join(":");
+      }
+      if(addresses.length > 1){
+        for (var i = 1; i < addresses.length; i++) {
+          temp += ["\n",addresses[i],":",port].join("");
+        }
+      }
+      
+      IPandPort.innerText = temp;
+      
+    }
+    updatePageFromFileShare();
+    setInterval(updatePageFromFileShare,500);
+    
+    //TODO use fs.watch to update file list.
+    
+    var fileList = document.getElementById('fileList');
+    var updateFileList = function (fileNames) {
+      fileList.innerHTML = "";
+      if(!(fileNames instanceof Array)){
+        return;
+      }
+      
+      //TODO do this with document.createElement
+      var temp = "";
+      fileNames.forEach(function(fileName) {
+        temp += '<a target="_blank" href="./f/'+fileName+'" class="list-group-item" download>'+fileName+'</a>';
+      });
+      console.log(temp);
+      fileList.innerHTML = temp;
+    }
+    //TODO get files then call updateFileList.
+    
+    
+    //TODO Show file upload/download progress.
+    
+    
+    
+    const selectFilesPath = function () {
+      var dialog = remote.require('electron').dialog;
+
+      var path = dialog.showOpenDialog({
+          properties: ['openDirectory']
+      });
+      console.log(path);
+      
+      //TODO change filePath varible here.
+    }
+    
+    //TODO: open folder (in all OSes).
+    const openFilesPath = function () {
+      alert("TODO");
+    }
+    
+    
+    </script>
   </body>
 </html>

@@ -151,7 +151,7 @@ module.exports = function (conf) {
             var fileList = [];
             if (files) {
                 fileList = files.filter(function (fileName) {
-                    return !(fileName[0] == '.' || fileName == "index.html");
+                    return fileName[0] != '.';
                 });
             }
             
@@ -180,7 +180,15 @@ module.exports = function (conf) {
         "addresses":addresses,
         "app":app,
         "disable":disable, //For changing later.
-        "port":port
+        "port":port,
+        "changeFilesPath": function (newPath) {
+            console.log("Old filePath:"+filePath);
+            filePath = newPath;
+            console.log("New filePath:"+filePath);
+        },
+        "getFilePath": function () {
+            return '' + filePath;
+        }
     };
     
 };
