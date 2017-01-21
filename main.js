@@ -1,17 +1,17 @@
 var http = require('http');
 
-var shareSettings = require('./fileshare')({
-    port:8080,
-	progressCallback: function(progress,fileName) {
-            //TODO: connect to UI when writing the electron app.
-            console.log("Progress: "+fileName+" "+Math.floor(progress)+"%");
- 	},
- 	errorCallback: function (err) {
- 		console.error(err);
- 	}
+var fileShare = require('./fileshare')({
+    port: process.env.PORT || 8080,
+    progressCallback: function(progress,fileName) {
+        //TODO: connect to UI when writing the electron app.
+        console.log("Progress: "+fileName+" "+Math.floor(progress)+"%");
+    },
+    errorCallback: function (err) {
+        console.error(err);
+    }
 });
 
-var server = http.createServer(shareSettings.app);
+var server = http.createServer(fileShare.app);
 
 function onError(error) {
     if (error.syscall !== 'listen') {
@@ -19,8 +19,8 @@ function onError(error) {
     }
     
     var bind = typeof port === 'string'
-    ? 'Pipe ' + shareSettings.port
-    : 'Port ' + shareSettings.port;
+    ? 'Pipe ' + fileShare.port
+    : 'Port ' + fileShare.port;
     
     // handle specific listen errors with friendly messages
     switch (error.code) {
@@ -43,12 +43,12 @@ function onListening() {
     if(typeof addr === 'string'){
         console.log('Listening on pipe ' + addr);
     } else {
-        shareSettings.addresses.forEach(function (address) {
+        fileShare.addresses.forEach(function (address) {
             console.log('Listening on ' + address + ':' + addr.port);
         });
     }
 }
 
-server.listen(shareSettings.port);
+server.listen(fileShare.port);
 server.on('error', onError);
 server.on('listening', onListening);
