@@ -38,3 +38,4 @@ jspm_packages
 
 # Directory used by the app for uploaded files
 /files
+.idea/
