@@ -2,9 +2,9 @@
   "name": "nodejs_lan_file_sharing",
   "version": "1.0.0",
   "description": "A small Node.js app designed for sharing files while on the same network. Uses express for file uploads and (static) file downloads.",
-  "main": "index.js",
+  "main": "main.js",
   "scripts": {
-    "start": "node index.js",
+    "start": "node main.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Baris Senkal <barissenkal@gmail.com> (http://etekmekketcap.com)",
