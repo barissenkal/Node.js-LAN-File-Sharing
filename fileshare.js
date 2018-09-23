@@ -69,6 +69,24 @@ module.exports = function (conf) {
     if(!disable.fileDownload) app.use('/f',express.static(filePath));
     
     app.post('/', function(req, res) {
+        
+        // Bug fix for when the filePath folder does not exists
+        if (!!conf.filePath) {
+            // For a path that can have multiple non existent folders.
+            // Borrowed from: https://stackoverflow.com/a/41970204
+            filePath.split(path.sep).reduce((currentPath, folder) => {
+                currentPath += folder + path.sep;
+                if (!fs.existsSync(currentPath)){
+                    fs.mkdirSync(currentPath);
+                }
+                return currentPath;
+            }, '');   
+        } else {
+            // For the simple './files' path.
+            if (!fs.existsSync(filePath)){
+                fs.mkdirSync(filePath);
+            }
+        }
     
         var form = new formidable.IncomingForm();
         
@@ -171,7 +189,8 @@ module.exports = function (conf) {
     // development error handler
     app.use(function(err, req, res, next) {
         if(errorCallback) errorCallback(err);
-        res.status(err.status || 500).send({ error: err });
+        //res.status(err.status || 500).send({ error: err });
+        next();
     });
     
     app.set('port', port);

@@ -6,6 +6,7 @@ var fileShare = require('./fileshare')({
         console.log("Progress: "+fileName+" "+Math.floor(progress)+"%");
     },
     errorCallback: function (err) {
+        console.log("(errorCallback)");
         console.error(err);
     }
 });
