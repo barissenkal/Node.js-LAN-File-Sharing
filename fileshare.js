@@ -3,6 +3,7 @@ var formidable = require('formidable');
 var path = require('path');
 var fs = require('fs');
 var os = require('os');
+var qr_image = require("qr-image");
 
 function normalizePort(val) {
     var port = parseInt(val, 10);
@@ -53,11 +54,21 @@ module.exports = function (conf) {
     for (var k in interfaces) {
         for (var k2 in interfaces[k]) {
             var address = interfaces[k][k2];
+            // NOTE: Only handling IPv4 at the moment.
             if (address.family === 'IPv4' && !address.internal) {
                 addresses.push(address.address);
             }
         }
     }
+
+    let qrCodesPath = path.join(publicPath, "./qr_codes/");
+    if (!fs.existsSync(qrCodesPath)){
+        fs.mkdirSync(qrCodesPath);
+    }
+    addresses.forEach((address) => {
+        let qr_svg = qr_image.image(`http://${address}:${port}/`, { type: 'png' });
+        qr_svg.pipe(fs.createWriteStream(path.join(publicPath, `./qr_codes/${address}_${port}.png`)));
+    });
     
     //New express app
     var app = express();

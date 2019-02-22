@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>The LAN File Uploader</title>
+  <title>Node.js LAN File Sharing</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   
   
@@ -93,7 +93,8 @@
   <div class="container">
     <div class="row">
       <div class="col-lg-4 col-lg-offset-4 col-md-6 col-md-offset-3 col-sm-12 text-center">
-        <h1 class="text-center">The File Uploader</h1>
+        <h1 class="text-center">LAN File Sharing</h1>
+        <img id="theQRCode">
         <h4 id="IPandPort"></h4>
       </div>
     </div>
@@ -145,16 +146,14 @@
   var IPandPort = document.getElementById('IPandPort');
   var updateAddress = function (addresses,port) {
     if(!(addresses instanceof Array)) return;
-    var temp = "";
-    if(addresses.length > 0){
-      temp = [addresses[0],port].join(":");
+    IPandPort.innerText = addresses.map(function (address) {
+      return [address, port].join(":");
+    }).join(", ");
+    if(addresses.length > 0) {
+      document.getElementById("theQRCode").setAttribute("src", `/qr_codes/${addresses[0]}_${port}.png`)
+    } else {
+      document.getElementById("theQRCode").setAttribute("src", "");
     }
-    if(addresses.length > 1){
-      for (var i = 1; i < addresses.length; i++) {
-        temp += [", ",addresses[i],":",port].join("");
-      }
-    }
-    IPandPort.innerText = temp;
   }
   
   var fileList = document.getElementById('fileList');

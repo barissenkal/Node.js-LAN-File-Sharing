@@ -11,6 +11,7 @@
   "license": "ISC",
   "dependencies": {
     "express": "^4.14.0",
-    "formidable": "^1.1.1"
+    "formidable": "^1.1.1",
+    "qr-image": "^3.2.0"
   }
 }

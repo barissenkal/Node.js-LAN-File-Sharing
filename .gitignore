@@ -39,3 +39,7 @@ jspm_packages
 # Directory used by the app for uploaded files
 /files
 .idea/
+public/qr_codes/
+
+# npm package-lock
+package-lock.json
