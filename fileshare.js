@@ -199,9 +199,12 @@ module.exports = function (conf) {
 
     // development error handler
     app.use(function(err, req, res, next) {
-        if(errorCallback) errorCallback(err);
-        //res.status(err.status || 500).send({ error: err });
-        next();
+        if(errorCallback) errorCallback(req.url, err);
+        if (err.status == 404) {
+            res.sendStatus(404);
+        } else {
+            res.sendStatus(500);
+        }
     });
     
     app.set('port', port);

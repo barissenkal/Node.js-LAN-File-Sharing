@@ -5,9 +5,13 @@ var fileShare = require('./fileshare')({
         //TODO: connect to UI when writing the electron app.
         console.log("Progress: "+fileName+" "+Math.floor(progress)+"%");
     },
-    errorCallback: function (err) {
-        console.log("(errorCallback)");
-        console.error(err);
+    errorCallback: function (url, err) {
+        if (err.status == 404) {
+            console.log("(Not Found) " + url);
+        } else {
+            console.log("(errorCallback) " + url);
+            console.error(err);   
+        }
     }
 });
 
