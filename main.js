@@ -1,6 +1,6 @@
 var http = require('http');
 var fileShare = require('./fileshare')({
-    port: process.env.PORT,
+    port: (process.argv[2] || process.env.PORT),
     progressCallback: function(progress, fileName) {
         //TODO: connect to UI when writing the electron app.
         console.log("Progress: "+fileName+" "+Math.floor(progress)+"%");

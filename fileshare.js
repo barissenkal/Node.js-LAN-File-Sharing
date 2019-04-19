@@ -5,6 +5,51 @@ var fs = require('fs');
 var os = require('os');
 var qr_image = require("qr-image");
 
+/**
+ * @param {string} basePath
+ * @param {string} relativePath
+ * @returns {Promise<Array<string>>}
+ */
+function recursiveReadDir(basePath) {
+    return _readDirPromise(basePath).then((contents) => {
+        return Promise.all(contents.map((fileOrDirName) => {
+            let fileOrDirPath = path.join(basePath, fileOrDirName);
+            return _isDirPromise(fileOrDirPath).then((isDir) => {
+                if (isDir) {
+                    return recursiveReadDir(fileOrDirPath);
+                } else {
+                    return [fileOrDirPath];
+                }
+            });
+        }));
+    })
+    .then((arrayOfArrays) => {
+        let result = [];
+        for (let index = 0; index < arrayOfArrays.length; index++) {
+            result.push(...arrayOfArrays[index]);
+        }
+        return result;
+    })
+}
+function _readDirPromise(targetPath) {
+    return new Promise((resolve) => {
+        fs.readdir(targetPath, (err, contents) => {
+            if (contents == null) {
+                resolve([]);
+            } else {
+                resolve(contents.filter((fileName) => fileName[0] != '.'));
+            }
+        })
+    });
+}
+function _isDirPromise(targetPath) {
+    return new Promise((resolve) => {
+        fs.lstat(targetPath, (err, stats) => {
+            resolve(stats.isDirectory());
+        });
+    });
+}
+
 function normalizePort(val) {
     var port = parseInt(val, 10);
     
@@ -26,7 +71,7 @@ module.exports = function (conf) {
     
     /*
         conf = {
-            filePath:...,
+            filesFolderPath:...,
             publicPath:...,
             port:...|8080,
             progressCallback:...,
@@ -40,7 +85,7 @@ module.exports = function (conf) {
     */
     
     //Getting config from conf.
-    var filePath = conf.filePath || path.join(__dirname, 'files'),
+    var filesFolderPath = conf.filesFolderPath || path.join(__dirname, 'files'),
         publicPath = conf.publicPath || path.join(__dirname, 'public'),
         port = normalizePort(conf.port || '8080'),
         progressCallback = conf.progressCallback || false,
@@ -77,15 +122,15 @@ module.exports = function (conf) {
     app.use(express.static(publicPath));
 
     //For downloading files
-    if(!disable.fileDownload) app.use('/f',express.static(filePath));
+    if(!disable.fileDownload) app.use('/f',express.static(filesFolderPath));
     
     app.post('/', function(req, res) {
         
-        // Bug fix for when the filePath folder does not exists
-        if (!!conf.filePath) {
+        // Bug fix for when the filesFolderPath folder does not exists
+        if (!!conf.filesFolderPath) {
             // For a path that can have multiple non existent folders.
             // Borrowed from: https://stackoverflow.com/a/41970204
-            filePath.split(path.sep).reduce((currentPath, folder) => {
+            filesFolderPath.split(path.sep).reduce((currentPath, folder) => {
                 currentPath += folder + path.sep;
                 if (!fs.existsSync(currentPath)){
                     fs.mkdirSync(currentPath);
@@ -94,8 +139,8 @@ module.exports = function (conf) {
             }, '');   
         } else {
             // For the simple './files' path.
-            if (!fs.existsSync(filePath)){
-                fs.mkdirSync(filePath);
+            if (!fs.existsSync(filesFolderPath)){
+                fs.mkdirSync(filesFolderPath);
             }
         }
     
@@ -126,11 +171,11 @@ module.exports = function (conf) {
             
             //For not overwriting files.
             var i = 0;
-            while(fs.existsSync(path.join(filePath, fileName))){
+            while(fs.existsSync(path.join(filesFolderPath, fileName))){
                 fileName = name + " dup" + (i++) + "." + extension;
             }
             
-            file.path = path.join(filePath, fileName);
+            file.path = path.join(filesFolderPath, fileName);
             file.finalName = fileName;
             finalName = fileName;
             
@@ -175,16 +220,10 @@ module.exports = function (conf) {
             return;
         }
         
-        fs.readdir(filePath, (err, files) => {
-            
-            var fileList = [];
-            if (files) {
-                fileList = files.filter(function (fileName) {
-                    return !(fileName[0] == '.' || fileName == "index.html");
-                });
-            }
-            
-            info.fileList = fileList;
+        recursiveReadDir(filesFolderPath).then((foundPaths) => {
+            info.fileList = foundPaths.map((foundPath) => {
+                return path.relative(filesFolderPath, foundPath);
+            })
             res.json(info);
         })
         
