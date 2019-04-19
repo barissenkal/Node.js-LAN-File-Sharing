@@ -85,6 +85,9 @@
     height: 22px;
     opacity: 0;
   }
+  .list-group-item {
+    word-break: break-word;
+  }
   </style>
   
 </head>
@@ -168,7 +171,7 @@
     fileNames.forEach(function(fileName) {
       temp += '<a target="_blank" href="./f/'+fileName+'" class="list-group-item" download>'+fileName+'</a>';
     });
-    console.log(temp);
+    //console.log(temp);
     fileList.innerHTML = temp;
     
   }
