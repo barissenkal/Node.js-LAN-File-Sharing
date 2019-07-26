@@ -85,8 +85,18 @@
     height: 22px;
     opacity: 0;
   }
+  .list-item {
+    display: flex;
+    align-items: flex-end;
+  }
   .list-group-item {
     word-break: break-word;
+    flex: 1;
+  }
+  .list-group-item-close {
+    margin-bottom: 2rem;
+    margin-left: -1.5rem;
+    z-index: 2;
   }
   </style>
   
@@ -169,11 +179,18 @@
     //TODO do this with document.createElement
     var temp = "";
     fileNames.forEach(function(fileName) {
-      temp += '<a target="_blank" href="./f/'+fileName+'" class="list-group-item" download>'+fileName+'</a>';
+      temp += `<div class="list-item">
+        <a target="_blank" href="./f/`+fileName+`" class="list-group-item" download>`+fileName+`</a>
+        <a class="list-group-item-close" href="javascript:void(0);" onclick="deleteFile('`+fileName+`')">&times;</a>
+        </div>`;
     });
-    //console.log(temp);
-    fileList.innerHTML = temp;
-    
+    fileList.innerHTML = temp; 
+  }
+
+  var deleteFile =  function (fileName) {
+    var request = new XMLHttpRequest()
+    request.open('GET', `./f/del/`+fileName, true)
+    request.send();
   }
   
   var getServerInfo = function (callback) {

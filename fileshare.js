@@ -123,7 +123,25 @@ module.exports = function (conf) {
 
     //For downloading files
     if(!disable.fileDownload) app.use('/f',express.static(filesFolderPath));
-    
+
+    app.get('/f/del/:filename',function(req, res) {
+        
+        var filename = req.params.filename
+
+        try {
+            fs.unlinkSync(`./files/`+filename)
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE'); // If needed
+            res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,contenttype'); // If needed
+            res.setHeader('Access-Control-Allow-Credentials', true); // If needed
+            res.status(200)
+            //file removed
+        } catch(err) {
+            err.status = 404;
+            res.send(err);
+        }
+    });
+
     app.post('/', function(req, res) {
         
         // Bug fix for when the filesFolderPath folder does not exists
