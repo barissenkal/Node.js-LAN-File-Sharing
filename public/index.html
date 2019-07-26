@@ -170,7 +170,7 @@
   }
   
   var fileList = document.getElementById('fileList');
-  var updateFileList = function (fileNames) {
+  var updateFileList = function (fileNames, allowDeletion) {
     fileList.innerHTML = "";
     if(!(fileNames instanceof Array)){
       return;
@@ -181,13 +181,14 @@
     fileNames.forEach(function(fileName) {
       temp += `<div class="list-item">
         <a target="_blank" href="./f/`+fileName+`" class="list-group-item" download>`+fileName+`</a>
-        <a class="list-group-item-close" href="javascript:void(0);" onclick="deleteFile('`+fileName+`')">&times;</a>
+        ${allowDeletion ? `<a class="list-group-item-close" href="javascript:void(0);" onclick="deleteFile('`+fileName+`')">&times;</a>` : ''}
         </div>`;
     });
     fileList.innerHTML = temp; 
   }
 
   var deleteFile =  function (fileName) {
+    if (!confirm("Are you sure?")) return;
     var request = new XMLHttpRequest()
     request.open('GET', `./f/del/`+fileName, true)
     request.send();
@@ -211,7 +212,7 @@
           updateAddress(data["addresses"],data["port"]);
         }
         if("fileList" in data){
-          updateFileList(data["fileList"]);
+          updateFileList(data["fileList"], data["allowDeletion"]);
         }
       } else {
         onError(0);
