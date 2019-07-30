@@ -74,6 +74,7 @@ module.exports = function (conf) {
             filesFolderPath:...,
             publicPath:...,
             port:...|8080,
+            allowDeletion:false,
             progressCallback:...,
             errorCallback:...,
             progressThreshold:...|10,
@@ -88,6 +89,7 @@ module.exports = function (conf) {
     var filesFolderPath = conf.filesFolderPath || path.join(__dirname, 'files'),
         publicPath = conf.publicPath || path.join(__dirname, 'public'),
         port = normalizePort(conf.port || '8080'),
+        allowDeletion = conf.allowDeletion === true,
         progressCallback = conf.progressCallback || false,
         errorCallback = conf.errorCallback || false,
         progressThreshold = conf.progressThreshold || 10,
@@ -123,7 +125,30 @@ module.exports = function (conf) {
 
     //For downloading files
     if(!disable.fileDownload) app.use('/f',express.static(filesFolderPath));
-    
+
+    app.get('/f/del/:filename',function(req, res) {
+        
+        if (allowDeletion) {
+            var filename = req.params.filename
+
+            try {
+                fs.unlinkSync(`./files/`+filename)
+                res.setHeader('Access-Control-Allow-Origin', '*');
+                res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE'); // If needed
+                res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,contenttype'); // If needed
+                res.setHeader('Access-Control-Allow-Credentials', true); // If needed
+                res.status(200)
+                //file removed
+            } catch(err) {
+                err.status = 404;
+                res.send(err);
+            }    
+        } else {
+            res.sendStatus(500);
+        }
+        
+    });
+
     app.post('/', function(req, res) {
         
         // Bug fix for when the filesFolderPath folder does not exists
@@ -213,7 +238,7 @@ module.exports = function (conf) {
         res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,contenttype'); // If needed
         res.setHeader('Access-Control-Allow-Credentials', true); // If needed
         
-        var info = {"addresses":addresses,"port":port};
+        var info = {"addresses":addresses,"port":port,"allowDeletion":allowDeletion};
         
         if(disable.fileDownload){
             res.json(info);
