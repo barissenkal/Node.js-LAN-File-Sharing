@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Node.js LAN File Sharing [Text Only]</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+  
+  <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" href="/icons/favicon-32x32.png" sizes="32x32">
+  <link rel="icon" type="image/png" href="/icons/favicon-16x16.png" sizes="16x16">
+  <link rel="manifest" href="/icons/manifest.json">
+  <link rel="mask-icon" href="/icons/safari-pinned-tab.svg" color="#006900">
+  <meta name="theme-color" content="#006900">
+  
+  <link rel="stylesheet" type="text/css" href="/css/bootstrap.min.css">
+  
+  <style type="text/css">
+  body {
+    margin:0;
+    height: 100vh;
+    width: 100vw;
+  }
+  #successoverlay {
+    display: none;
+    z-index: 1000;
+  }
+  body.success > #successoverlay {
+    display:block;
+    position: fixed;
+    top:0;
+    bottom:0;
+    left:0;
+    right:0;
+    background: rgba(0, 0, 0, 0.65);
+    z-index: 1000;
+    text-align: center;
+    padding: 10vw;
+  }
+  body.success > #successoverlay > .title {
+    color: white;
+    font-family: monospace;
+    font-size: 64px;
+    text-shadow: 0 0 20px black;
+  }
+  
+  .noselect {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -khtml-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+  
+  #IPandPort {
+    color: #0af;
+    font-family: monospace;
+    line-height: 40px;
+  }
+  
+  #fileToUploadButtonBox {
+    height: 65px;
+    padding-top: 20px;
+  }
+  #fileToUploadButton {
+    padding: 0;
+    width: 78px;
+    height: 22px;
+    margin: 0;
+    display: inline-block;
+    transform: scale(2);
+    cursor: pointer;
+    z-index: 100;
+  }
+  #fileToUploadButton .button-text {
+    font-size: 12px;
+    line-height: 22px;
+  }
+  #fileToUpload {
+    position: relative;
+    top:-22px;
+    margin: 0;
+    width: 78px;
+    height: 22px;
+    opacity: 0;
+  }
+  .list-group-item {
+    word-break: break-word;
+  }
+  </style>
+  
+</head>
+<body>
+  
+  <div class="container">
+    <div class="row">
+      <div class="col-lg-4 col-lg-offset-4 col-md-6 col-md-offset-3 col-sm-12 text-center">
+        <h1 class="text-center">LAN File Sharing [Text Only]</h1>
+        <h4 id="IPandPort"></h4>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-lg-4 col-lg-offset-4 col-md-6 col-md-offset-3 col-sm-12 text-center">
+        
+        <form ref='uploadForm' id='uploadForm' action="" method="post" enctype="multipart/form-data">
+          <p> Drag file in page or click below: </p>
+          <div id="fileToUploadButtonBox">
+            <div id="fileToUploadButton" class="btn btn-primary">
+              <span class="button-text">Choose File</span>
+              <input type="file" name="fileToUpload" id="fileToUpload">
+            </div>
+          </div>
+        </form>
+        
+        <br>
+        
+        <div id="successPanel" class="panel panel-success hidden">
+          <div class="panel-body text-center">
+            <p class="text-success" style="margin:0;">File uploaded as "<span id="fileSuccessName"></span>"</p>
+          </div>
+        </div>
+        
+        <div id="errorPanel" class="panel panel-danger hidden">
+          <div class="panel-body text-center">
+            <p class="text-danger" style="margin:0;">File upload failed.</p>
+          </div>
+        </div>
+        
+        <br>
+        
+        <div id="fileList" class="list-group">
+        </div>
+        
+      </div>
+    </div>
+  </div>
+  
+  
+  <div id="successoverlay">
+    <span class="title noselect">&nbsp;&nbsp;&nbsp;Uploading...</span>
+  </div>
+  
+  <script type="text/javascript">
+  
+  /* Getting server info */
+  
+  var IPandPort = document.getElementById('IPandPort');
+  var updateAddress = function (addresses,port) {
+    if(!(addresses instanceof Array)) return;
+    IPandPort.innerText = addresses.map(function (address) {
+      return [address, port].join(":");
+    }).join(", ");
+  }
+  
+  var fileList = document.getElementById('fileList');
+  var updateFileList = function (fileNames) {
+    if(!(fileNames instanceof Array)){
+      fileList.innerHTML = "";
+      return;
+    }
+    
+    var basePath = (location.protocol + '//' + location.hostname) + '/f/';
+    
+    //TODO do this with document.createElement
+    var temp = "";
+    fileNames.forEach(function(fileName) {
+      // temp += '<a target="_blank" href="./f/'+fileName+'" class="list-group-item" download>'+fileName+'</a>';
+      temp += '<div class="list-group-item text_link_div">'+ (location.protocol + '//' + location.hostname) + '/f/' + fileName+'</div><br>';
+      // temp += '<input type="text" value="'+ basePath + fileName+ '"/><br>';
+    });
+    
+    if(fileList.innerHTML != temp)
+    {
+      fileList.innerHTML = temp;
+    }
+  }
+  
+  var getServerInfo = function (callback) {
+    var request = new XMLHttpRequest();
+    request.open('GET', '/info', true);
+    
+    var onError = function (caller) {
+      //TODO check if offline (or server is down)
+      console.log(request);
+    }
+    
+    request.onload = function() {
+      if (request.status >= 200 && request.status < 400) {
+        // Success!
+        var resp = request.responseText;
+        var data = JSON.parse(resp);
+        if("addresses" in data && "port" in data){
+          updateAddress(data["addresses"],data["port"]);
+        }
+        if("fileList" in data){
+          updateFileList(data["fileList"]);
+        }
+      } else {
+        onError(0);
+      }
+    };
+    
+    request.onerror = function(){onError(1);};
+    
+    request.send();
+  }
+  
+  getServerInfo();
+  setInterval(function () {
+    getServerInfo();
+  },2000);
+  
+  
+  /* Query based upload success error stuff */
+  
+  var queryText = location.search;
+  
+  //Clearing query.
+  window.history.pushState('obj', document.title, "http://" + location.host + location.pathname);
+  
+  //TODO do this properly
+  var successIndex = queryText.startsWith("?success=");
+  if(successIndex){
+    var successPanel = document.getElementById('successPanel');
+    if(successPanel) successPanel.className = successPanel.className.replace("hidden","");
+    
+    var fileSuccessName = document.getElementById('fileSuccessName');
+    fileSuccessName.innerText = decodeURIComponent(queryText.substring(9));
+    
+  } else if(queryText.startsWith("?error=")){
+    var errorPanel = document.getElementById('errorPanel');
+    if(errorPanel) errorPanel.className = errorPanel.className.replace("hidden","");
+  }
+  
+  /* Drag n Drop Upload */
+  
+  var holder = document.body;
+  var fileToUploadButton = document.getElementById('fileToUploadButton');
+  
+  holder.ondragover = function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    var x = e.pageX;
+    var y = e.pageY;
+    
+    fileToUploadButton.style.position = "fixed";
+    fileToUploadButton.style.top = (y - 11) + "px";
+    fileToUploadButton.style.left = (x - 40) + "px";
+    
+  };
+  
+  var fixButtonBack = function () { fileToUploadButton.style.position = "static"; }
+  holder.ondragend = fixButtonBack;
+  holder.ondragexit = fixButtonBack;
+  holder.ondragleave = function (e) {
+    //console.log("holder.ondragleave",e);
+    if (e.target == fileToUpload
+      || e.pageX <= 10 || e.pageX >= window.innerWidth-10
+      || e.pageY <= 10 || e.pageY >= window.innerHeight-10) {
+        fixButtonBack();
+      }
+    }
+    holder.ondrop = function (e) {
+      if(e.target != fileToUpload){
+        e.preventDefault();
+      }
+      fixButtonBack();
+    }
+    
+    
+    var fileToUpload = document.getElementById('fileToUpload');
+    fileToUpload.onchange = function (e) {
+      holder.className += " success";
+      setTimeout(function() {
+        fileToUpload.form.submit();
+      }, 1);
+    }
+    
+    </script>
+  </body>
+  </html>
