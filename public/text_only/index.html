@@ -153,26 +153,41 @@
     }).join(", ");
   }
   
+  var previousFileNames = null;
   var fileList = document.getElementById('fileList');
   var updateFileList = function (fileNames) {
-    if(!(fileNames instanceof Array)){
+    if (!(fileNames instanceof Array)) {
       fileList.innerHTML = "";
+      return;
+    }
+    if (arrayEquals(previousFileNames, fileNames)) {
       return;
     }
     
     var basePath = (location.protocol + '//' + location.hostname) + '/f/';
     
     //TODO do this with document.createElement
-    var temp = "";
-    fileNames.forEach(function(fileName) {
-      // temp += '<a target="_blank" href="./f/'+fileName+'" class="list-group-item" download>'+fileName+'</a>';
-      temp += '<div class="list-group-item text_link_div">'+ (location.protocol + '//' + location.hostname) + '/f/' + fileName+'</div><br>';
-      // temp += '<input type="text" value="'+ basePath + fileName+ '"/><br>';
-    });
+    fileList.innerHTML = fileNames.map(function(fileName) {
+      return '<div class="list-group-item text_link_div">'+ basePath + fileName + '</div>';
+    }).join('<br>');
     
-    if(fileList.innerHTML != temp)
-    {
-      fileList.innerHTML = temp;
+    previousFileNames = fileNames;
+  }
+  
+  function arrayEquals(ar1, ar2) {
+    if (ar1 == null) {
+      return ar2 == null;
+    }
+    if (ar2 == null) {
+      return ar1 == null;
+    }
+    if (ar1.length != ar2.length) {
+      return false;
+    } else {
+      for (let index = 0; index < ar1.length; index++) {
+        if (ar1[index] != ar2[index]) return false;
+      }
+      return true;
     }
   }
   
