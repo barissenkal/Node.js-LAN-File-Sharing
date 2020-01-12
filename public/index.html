@@ -58,6 +58,12 @@
     font-family: monospace;
     line-height: 40px;
   }
+  #IPandPort.error {
+    color: #ff1a00;
+  }
+  #IPandPort.warning {
+    color: #ffb700;
+  }
   
   #fileToUploadButtonBox {
     height: 65px;
@@ -157,15 +163,29 @@
   /* Getting server info */
   
   var IPandPort = document.getElementById('IPandPort');
+  var theQRCode = document.getElementById('theQRCode');
   var updateAddress = function (addresses,port) {
     if(!(addresses instanceof Array)) return;
+    IPandPort.classList.remove("error", "warning");
     IPandPort.innerText = addresses.map(function (address) {
       return [address, port].join(":");
     }).join(", ");
     if(addresses.length > 0) {
-      document.getElementById("theQRCode").setAttribute("src", `/qr_codes/${addresses[0]}_${port}.png`)
+      theQRCode.setAttribute("src", `/qr_codes/${addresses[0]}_${port}.png`)
     } else {
-      document.getElementById("theQRCode").setAttribute("src", "");
+      theQRCode.setAttribute("src", "");
+    }
+  }
+  var updateAddressWError = function (isWarning) {
+    if(isWarning)
+    {
+      IPandPort.classList.remove("error");
+      IPandPort.classList.add("warning");
+    }
+    else
+    {
+      IPandPort.classList.remove("warning");
+      IPandPort.classList.add("error");
     }
   }
   
@@ -219,11 +239,6 @@
     var request = new XMLHttpRequest();
     request.open('GET', '/info', true);
     
-    var onError = function (caller) {
-      //TODO check if offline (or server is down)
-      console.log(request);
-    }
-    
     request.onload = function() {
       if (request.status >= 200 && request.status < 400) {
         // Success!
@@ -236,11 +251,15 @@
           updateFileList(data["fileList"], data["allowDeletion"]);
         }
       } else {
-        onError(0);
+        updateAddressWError(true);
+        console.error(request);
       }
     };
     
-    request.onerror = function(){onError(1);};
+    request.onerror = function() {
+      updateAddressWError(false);
+      console.error(request);
+    };
     
     request.send();
   }
