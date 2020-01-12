@@ -16,6 +16,7 @@ const crypto = require('crypto');
  * @property {string} [name]
  * @property {string} path
  * @property {Array<Content>} [contents]
+ * @property {number} [timestamp]
  */
 
 /**
@@ -24,7 +25,7 @@ const crypto = require('crypto');
  * @param {string} [name=null]
  * @returns {Promise<Content>}
  */
-function recursiveReaddir(targetPath, basePath, name = null) {
+function recursiveReaddir(targetPath, basePath, name = null, orderByTime=false) {
     return readdirPromise(targetPath).then((contentNames) => {
         return Promise.all(contentNames.map((fileOrDirName) => {
             let fileOrDirPath = path.join(targetPath, fileOrDirName);
@@ -35,7 +36,8 @@ function recursiveReaddir(targetPath, basePath, name = null) {
                     return {
                         "folder": false,
                         "name": fileOrDirName,
-                        "path": path.relative(basePath, fileOrDirPath)
+                        "path": path.relative(basePath, fileOrDirPath),
+                        "timestamp": Math.max(...[stats.ctimeMs, stats.mtimeMs].filter(x => (x != null)))
                     };
                 } else {
                     // NOTE(baris): Only handling file and folders
@@ -47,11 +49,27 @@ function recursiveReaddir(targetPath, basePath, name = null) {
         if (contentObjects.length == 0 && targetPath != basePath) { // Ignoring empty (sub)folders
             return null;
         } else {
+            let timestamp = null;
+            if(contentObjects.length > 0)
+            {
+                contentObjects = contentObjects.filter(obj => (obj != null));
+                if(orderByTime) {
+                    contentObjects = contentObjects.sort((a, b) => {
+                        if(a.timestamp == null) return 1;
+                        if(b.timestamp == null) return -1;
+                        return b.timestamp - a.timestamp;
+                    });
+                    timestamp = contentObjects[0].timestamp;
+                } else {
+                    timestamp = contentObjects.map((x) => x.timestamp).filter(x => (x != null)).sort((a,b) => b-a)[0];
+                }
+            }
             return {
                 "folder": true,
                 "name": name,
                 "path": path.relative(basePath, targetPath),
-                "contents": contentObjects.filter(obj => (obj != null))
+                "contents": contentObjects,
+                "timestamp": timestamp
             }
         }
     })
@@ -127,6 +145,7 @@ module.exports = function (conf) {
         progressCallback = conf.progressCallback || false,
         errorCallback = conf.errorCallback || false,
         progressThreshold = conf.progressThreshold || 10,
+        orderByTime = conf.orderByTime || true,
         disable = conf.disable || {};
     
     var interfaces = os.networkInterfaces();
@@ -280,7 +299,7 @@ module.exports = function (conf) {
             return;
         }
         
-        recursiveReaddir(filesFolderPath, filesFolderPath, null).then((rootContent) => {
+        recursiveReaddir(filesFolderPath, filesFolderPath, null, orderByTime).then((rootContent) => {
             info.rootContent = rootContent;
             // NOTE(baris): For client to not re-render UI when there are no changes.
             info.rootContentMD5 = crypto.createHash('md5').update(JSON.stringify(rootContent)).digest("hex");
