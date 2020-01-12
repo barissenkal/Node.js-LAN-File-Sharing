@@ -1,51 +1,85 @@
-var express = require('express');
-var formidable = require('formidable');
-var path = require('path');
-var fs = require('fs');
-var os = require('os');
-var qr_image = require("qr-image");
+// @ts-check
+
+const express = require('express');
+const formidable = require('formidable');
+const path = require('path');
+const fs = require('fs');
+const os = require('os');
+const qr_image = require("qr-image");
+const crypto = require('crypto');
+
+/** @typedef {import('fs').Stats} FileStats */
 
 /**
- * @param {string} basePath
- * @param {string} relativePath
- * @returns {Promise<Array<string>>}
+ * @typedef Content
+ * @property {boolean} folder
+ * @property {string} [name]
+ * @property {string} path
+ * @property {Array<Content>} [contents]
  */
-function recursiveReadDir(basePath) {
-    return _readDirPromise(basePath).then((contents) => {
-        return Promise.all(contents.map((fileOrDirName) => {
-            let fileOrDirPath = path.join(basePath, fileOrDirName);
-            return _isDirPromise(fileOrDirPath).then((isDir) => {
-                if (isDir) {
-                    return recursiveReadDir(fileOrDirPath);
+
+/**
+ * @param {string} targetPath
+ * @param {string} basePath
+ * @param {string} [name=null]
+ * @returns {Promise<Content>}
+ */
+function recursiveReaddir(targetPath, basePath, name = null) {
+    return readdirPromise(targetPath).then((contentNames) => {
+        return Promise.all(contentNames.map((fileOrDirName) => {
+            let fileOrDirPath = path.join(targetPath, fileOrDirName);
+            return lstatPromise(fileOrDirPath).then((stats) => {
+                if (stats.isDirectory()) {
+                    return recursiveReaddir(fileOrDirPath, basePath, fileOrDirName);
+                } else if (stats.isFile()) {
+                    return {
+                        "folder": false,
+                        "name": fileOrDirName,
+                        "path": path.relative(basePath, fileOrDirPath)
+                    };
                 } else {
-                    return [fileOrDirPath];
+                    // NOTE(baris): Only handling file and folders
+                    return null;
                 }
             });
         }));
-    })
-    .then((arrayOfArrays) => {
-        let result = [];
-        for (let index = 0; index < arrayOfArrays.length; index++) {
-            result.push(...arrayOfArrays[index]);
+    }).then((contentObjects) => {
+        if (contentObjects.length == 0 && targetPath != basePath) { // Ignoring empty (sub)folders
+            return null;
+        } else {
+            return {
+                "folder": true,
+                "name": name,
+                "path": path.relative(basePath, targetPath),
+                "contents": contentObjects.filter(obj => (obj != null))
+            }
         }
-        return result;
     })
 }
-function _readDirPromise(targetPath) {
+/**
+ * @param {string} targetPath
+ * @returns {Promise<Array<string>>}
+ */
+function readdirPromise(targetPath) {
     return new Promise((resolve) => {
-        fs.readdir(targetPath, (err, contents) => {
-            if (contents == null) {
+        fs.readdir(targetPath, (err, contentNames) => {
+            if (contentNames == null) {
                 resolve([]);
             } else {
-                resolve(contents.filter((fileName) => fileName[0] != '.'));
+                // NOTE(baris): Ignoring hidden files all together.
+                resolve(contentNames.filter((contentName) => contentName[0] != '.'));
             }
         })
     });
 }
-function _isDirPromise(targetPath) {
+/**
+ * @param {string} targetPath
+ * @returns {Promise<FileStats>}
+ */
+function lstatPromise(targetPath) {
     return new Promise((resolve) => {
         fs.lstat(targetPath, (err, stats) => {
-            resolve(stats.isDirectory());
+            resolve(stats);
         });
     });
 }
@@ -136,7 +170,7 @@ module.exports = function (conf) {
                 res.setHeader('Access-Control-Allow-Origin', '*');
                 res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE'); // If needed
                 res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,contenttype'); // If needed
-                res.setHeader('Access-Control-Allow-Credentials', true); // If needed
+                res.setHeader('Access-Control-Allow-Credentials', "true"); // If needed
                 res.status(200)
                 //file removed
             } catch(err) {
@@ -176,14 +210,14 @@ module.exports = function (conf) {
         var finalName,
             progress;
         
-        form.on('fileBegin', function (name, file){
+        form.on('fileBegin', function (_, file){
             
             progress = 0;
             
-            fileName = file.name;
+            var fileName = file.name;
             var splitted = fileName.split(".");
             var extension, name;
-            if(splitted.length > 1) {
+            if (splitted.length > 1) {
                 extension = splitted[splitted.length-1];
                 name = "";
                 for (var i = 0; i < splitted.length-1; i++) {
@@ -226,8 +260,9 @@ module.exports = function (conf) {
     
     app.get('/info',function(req, res) {
         
-        if(disable.info) {
+        if (disable.info) {
             var err = new Error('Not Found');
+            // @ts-ignore
             err.status = 404;
             res.send(err);
             return;
@@ -236,19 +271,19 @@ module.exports = function (conf) {
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE'); // If needed
         res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,contenttype'); // If needed
-        res.setHeader('Access-Control-Allow-Credentials', true); // If needed
+        res.setHeader('Access-Control-Allow-Credentials', "true"); // If needed
         
         var info = {"addresses":addresses,"port":port,"allowDeletion":allowDeletion};
         
-        if(disable.fileDownload){
+        if (disable.fileDownload) {
             res.json(info);
             return;
         }
         
-        recursiveReadDir(filesFolderPath).then((foundPaths) => {
-            info.fileList = foundPaths.map((foundPath) => {
-                return path.relative(filesFolderPath, foundPath);
-            })
+        recursiveReaddir(filesFolderPath, filesFolderPath, null).then((rootContent) => {
+            info.rootContent = rootContent;
+            // NOTE(baris): For client to not re-render UI when there are no changes.
+            info.rootContentMD5 = crypto.createHash('md5').update(JSON.stringify(rootContent)).digest("hex");
             res.json(info);
         })
         
@@ -257,6 +292,7 @@ module.exports = function (conf) {
     // catch 404
     app.use(function(req, res, next) {
         var err = new Error('Not Found');
+        // @ts-ignore
         err.status = 404;
         next(err);
     });

@@ -13,16 +13,25 @@
   <link rel="mask-icon" href="/icons/safari-pinned-tab.svg" color="#006900">
   <meta name="theme-color" content="#006900">
   
-  <link rel="stylesheet" type="text/css" href="/css/bootstrap.min.css">
+  <!-- <link rel="stylesheet" type="text/css" href="/css/bootstrap.min.css"> -->
   
   <style type="text/css">
+  * {
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    box-sizing: border-box;
+  }
+  html {margin:0;padding:0;}
   body {
+    font-family: -apple-system, Roboto, Helvetica, Arial, sans-serif;
     margin:0;
+    padding:0;
     height: 100vh;
     width: 100vw;
   }
   #successoverlay {
-    display: none;
+    display: none;    white-space: normal;
+    vertical-align: middle;
     z-index: 1000;
   }
   body.success > #successoverlay {
@@ -51,6 +60,88 @@
     -moz-user-select: none;
     -ms-user-select: none;
     user-select: none;
+  }
+  
+  .hidden {
+    display: none;
+  }
+  
+  .text-center {
+    text-align: center;
+  }
+  
+  .row {
+    width: 100%;
+    text-align: center;
+  }
+  .column {
+    margin: auto;
+    width: 100%;
+    max-width: 500px;
+  }
+  
+  .btn {
+    display: inline-block;
+    margin-bottom: 0;
+    font-weight: normal;
+    text-align: center;
+    vertical-align: middle;
+    -ms-touch-action: manipulation;
+    touch-action: manipulation;
+    cursor: pointer;
+    background-image: none;
+    border: 1px solid transparent;
+    white-space: nowrap;
+    padding: 6px 12px;
+    font-size: 14px;
+    line-height: 1.42857143;
+    border-radius: 4px;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    white-space: normal;
+    vertical-align: middle;
+  }
+  .btn-primary {
+    color: #fff;
+    background-color: #337ab7;
+    border-color: #2e6da4;
+  }
+  
+  h1 {
+    font-size: 36px;
+    font-family: inherit;
+    font-weight: 500;
+    line-height: 1.1;
+    color: #333;
+    margin: 20px 0.67em 10px;
+  }
+  
+  h4 {
+    font-size: 18px;
+    margin-top: 10px;
+    margin-bottom: 10px;
+    font-weight: 500;
+  }
+  
+  p {
+    margin: 0 0 10px;
+    font-size: 14px;
+  }
+  
+  a {
+    color: #337ab7;
+    text-decoration: none;
+    background-color: transparent;
+  }
+  a:hover,a:focus {
+    color: #23527c;
+    text-decoration: underline
+  }
+  a:focus {
+    outline: 5px auto -webkit-focus-ring-color;
+    outline-offset: -2px
   }
   
   #IPandPort {
@@ -91,16 +182,41 @@
     height: 22px;
     opacity: 0;
   }
-  .list-item {
+  
+  #fileList {
+    
+  }
+  .folder-item {
+    border-radius: 12px;
+    border: 1px dashed #666;
+    margin-bottom: 8px;
+    padding: 1px;
+  }
+  .folder-item.closed > .folder-item {
+    display: none;
+  }
+  .folder-name {
+    padding: 8px;
+  }
+  .folder-item.closed > .folder-name {
+    opacity: 0.6;
+  }
+  .file-item {
     display: flex;
     align-items: flex-end;
+    padding: .75rem 1.25rem;
+    margin-bottom: 8px;
+    border-radius: 12px;
+    border: 1px solid #666;
   }
-  .list-group-item {
+  .folder-item.closed .file-item {
+    display: none;
+  }
+  .file-name {
     word-break: break-word;
     flex: 1;
   }
-  .list-group-item-close {
-    margin-bottom: 2rem;
+  .file-delete-button {
     margin-left: -1.5rem;
     z-index: 2;
   }
@@ -111,14 +227,14 @@
   
   <div class="container">
     <div class="row">
-      <div class="col-lg-4 col-lg-offset-4 col-md-6 col-md-offset-3 col-sm-12 text-center">
+      <div class="column">
         <h1 class="text-center">LAN File Sharing</h1>
         <img id="theQRCode">
         <h4 id="IPandPort"></h4>
       </div>
     </div>
     <div class="row">
-      <div class="col-lg-4 col-lg-offset-4 col-md-6 col-md-offset-3 col-sm-12 text-center">
+      <div class="column">
         
         <form ref='uploadForm' id='uploadForm' action="" method="post" enctype="multipart/form-data">
           <p> Drag file in page or click below: </p>
@@ -146,7 +262,7 @@
         
         <br>
         
-        <div id="fileList" class="list-group">
+        <div id="fileList">
         </div>
         
       </div>
@@ -159,6 +275,15 @@
   </div>
   
   <script type="text/javascript">
+  // @ts-check
+  
+  /**
+   * @typedef Content
+   * @property {boolean} folder
+   * @property {string} [name]
+   * @property {string} path
+   * @property {Array<Content>} [contents]
+   */
   
   /* Getting server info */
   
@@ -189,26 +314,59 @@
     }
   }
   
-  var previousFileNames = null;
+  var previousRootContentMD5 = null;
   var fileList = document.getElementById('fileList');
-  var updateFileList = function (fileNames, allowDeletion) {
-    if (!(fileNames instanceof Array)) {
+  var updateFiles = function (rootContentObject, rootContentMD5, allowDeletion) {
+    
+    console.log("rootContentObject", rootContentObject);
+    
+    if (
+      rootContentMD5 != null &&
+      rootContentMD5 == previousRootContentMD5
+    ) {
+      return;
+    }
+    if (!(rootContentObject instanceof Object)) {
       fileList.innerHTML = "";
       return;
     }
-    if (arrayEquals(previousFileNames, fileNames)) {
-      return;
+    
+    fileList.innerHTML = recursiveContentHTML(rootContentObject, allowDeletion);
+    
+    // previousFileNames = fileNames;
+    
+    previousRootContentMD5 = rootContentMD5;
+  }
+  /**
+   * @param {Content} contentObject
+   * @param {boolean} allowDeletion
+   */
+  var recursiveContentHTML = function (contentObject, allowDeletion) {
+    // //TODO(baris) do this with document.createElement
+    let strArray = [];
+    
+    if (contentObject.folder) {
+      if(contentObject.path != "") {
+        strArray.push(`<div class="folder-item">`);
+        strArray.push(`<div class="folder-name" onclick="this.parentNode.classList.toggle('closed')">/${contentObject.path}</div>`);
+      }
+      
+      strArray.push(...contentObject.contents.map((childContentObject) => {
+        return recursiveContentHTML(childContentObject, allowDeletion);
+      }));
+        
+      if(contentObject.path != "") {
+        strArray.push(`</div>`);
+      }
+    } else {
+      strArray.push(`<div class="file-item">`);
+      strArray.push(`<a target="_blank" href="./f/${contentObject.path}" class="file-name" download>${contentObject.name}</a>`);
+      if (allowDeletion) {
+        strArray.push(`<a class="file-delete-button" href="javascript:void(0);" onclick="deleteFile('${contentObject.path}')">&times;</a>`);
+      }
+      strArray.push(`</div>`);
     }
-    
-    //TODO do this with document.createElement
-    fileList.innerHTML = fileNames.map(function(fileName) {
-      return `<div class="list-item">
-        <a target="_blank" href="./f/`+fileName+`" class="list-group-item" download>`+fileName+`</a>
-        ${allowDeletion ? `<a class="list-group-item-close" href="javascript:void(0);" onclick="deleteFile('`+fileName+`')">&times;</a>` : ''}
-      </div>`;
-    }).join('');
-    
-    previousFileNames = fileNames;
+    return strArray.join('');
   }
   
   function arrayEquals(ar1, ar2) {
@@ -247,8 +405,8 @@
         if("addresses" in data && "port" in data){
           updateAddress(data["addresses"],data["port"]);
         }
-        if("fileList" in data){
-          updateFileList(data["fileList"], data["allowDeletion"]);
+        if("rootContent" in data){
+          updateFiles(data["rootContent"], data["rootContentMD5"], data["allowDeletion"]);
         }
       } else {
         updateAddressWError(true);
@@ -326,7 +484,8 @@
       fixButtonBack();
     }
     
-    
+    /** @type {HTMLInputElement} */
+    // @ts-ignore
     var fileToUpload = document.getElementById('fileToUpload');
     fileToUpload.onchange = function (e) {
       holder.className += " success";
