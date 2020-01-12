@@ -183,9 +183,6 @@
     opacity: 0;
   }
   
-  #fileList {
-    
-  }
   .folder-item {
     border-radius: 12px;
     border: 1px dashed #666;
@@ -197,6 +194,7 @@
   }
   .folder-name {
     padding: 8px;
+    word-break: break-word;
   }
   .folder-item.closed > .folder-name {
     opacity: 0.6;
@@ -208,6 +206,7 @@
     margin-bottom: 8px;
     border-radius: 12px;
     border: 1px solid #666;
+    word-break: break-word;
   }
   .folder-item.closed .file-item {
     display: none;
@@ -317,8 +316,7 @@
   var previousRootContentMD5 = null;
   var fileList = document.getElementById('fileList');
   var updateFiles = function (rootContentObject, rootContentMD5, allowDeletion) {
-    
-    console.log("rootContentObject", rootContentObject);
+    // console.log("rootContentObject", rootContentObject);
     
     if (
       rootContentMD5 != null &&
@@ -326,14 +324,13 @@
     ) {
       return;
     }
+    
     if (!(rootContentObject instanceof Object)) {
       fileList.innerHTML = "";
       return;
     }
     
     fileList.innerHTML = recursiveContentHTML(rootContentObject, allowDeletion);
-    
-    // previousFileNames = fileNames;
     
     previousRootContentMD5 = rootContentMD5;
   }
