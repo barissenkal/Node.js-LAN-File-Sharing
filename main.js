@@ -1,18 +1,18 @@
 var http = require('http');
 var fileShare = require('./fileshare')({
-    filesFolderPath: (process.argv[3] || null),
+    filesFolderPath: (process.argv[3] || null),
     port: (process.argv[2] || process.env.PORT),
     allowDeletion: false,
-    progressCallback: function(progress, fileName) {
+    progressCallback: function (progress, fileName) {
         //TODO: connect to UI when writing the electron app.
-        console.log("Progress: "+fileName+" "+Math.floor(progress)+"%");
+        console.log("Progress: " + fileName + " " + Math.floor(progress) + "%");
     },
     errorCallback: function (url, err) {
         if (err.status == 404) {
             console.log("(Not Found) " + url);
         } else {
             console.log("(errorCallback) " + url);
-            console.error(err);   
+            console.error(err);
         }
     }
 });
@@ -23,30 +23,30 @@ function onError(error) {
     if (error.syscall !== 'listen') {
         throw error;
     }
-    
+
     var bind = typeof port === 'string'
-    ? 'Pipe ' + fileShare.port
-    : 'Port ' + fileShare.port;
-    
+        ? 'Pipe ' + fileShare.port
+        : 'Port ' + fileShare.port;
+
     // handle specific listen errors with friendly messages
     switch (error.code) {
         case 'EACCES':
-        console.error(bind + ' requires elevated privileges');
-        process.exit(1);
-        break;
+            console.error(bind + ' requires elevated privileges');
+            process.exit(1);
+            break;
         case 'EADDRINUSE':
-        console.error(bind + ' is already in use');
-        process.exit(1);
-        break;
+            console.error(bind + ' is already in use');
+            process.exit(1);
+            break;
         default:
-        throw error;
+            throw error;
     }
 }
 
 function onListening() {
     var addr = server.address();
-    
-    if(typeof addr === 'string'){
+
+    if (typeof addr === 'string') {
         console.log('Listening on pipe ' + addr);
     } else {
         fileShare.addresses.forEach(function (address) {

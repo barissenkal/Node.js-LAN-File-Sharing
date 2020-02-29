@@ -1,44 +1,50 @@
-
+"use strict";
 // @ts-check
 
-/**
- * @typedef Content
- * @property {boolean} folder
- * @property {string} [name]
- * @property {string} path
- * @property {Array<Content>} [contents]
- */
+/** @typedef {import('../../fileshare').Content} Content */
+/** @typedef {import('../../fileshare').ServerInfoResult} ServerInfoResult */
 
 /* Getting server info */
 
-var IPandPort = document.getElementById('IPandPort');
-var theQRCode = document.getElementById('theQRCode');
-var updateAddress = function (addresses, port) {
-    if (!(addresses instanceof Array)) return;
-    IPandPort.classList.remove("error", "warning");
-    IPandPort.innerText = addresses.map(function (address) {
+const IPandPortElement = document.getElementById('IPandPort');
+const theQRCodeElement = document.getElementById('theQRCode');
+/**
+ * @param {Array<string>} addresses
+ * @param {number} port
+ */
+function updateAddressInfo(addresses, port) {
+    IPandPortElement.innerText = addresses.map(function (address) {
         return [address, port].join(":");
     }).join(", ");
     if (addresses.length > 0) {
-        theQRCode.setAttribute("src", `/qr_codes/${addresses[0]}_${port}.png`)
+        theQRCodeElement.setAttribute("src", `/qr_codes/${addresses[0]}_${port}.png`)
     } else {
-        theQRCode.setAttribute("src", "");
-    }
-}
-var updateAddressWError = function (isWarning) {
-    if (isWarning) {
-        IPandPort.classList.remove("error");
-        IPandPort.classList.add("warning");
-    }
-    else {
-        IPandPort.classList.remove("warning");
-        IPandPort.classList.add("error");
+        theQRCodeElement.setAttribute("src", "");
     }
 }
 
-var previousRootContentMD5 = null;
-var fileList = document.getElementById('fileList');
-var updateFiles = function (rootContentObject, rootContentMD5, allowDeletion) {
+/** @typedef {"success"|"warning"|"error"} AddressInfoStatusEnum */
+
+/**
+ * @param {AddressInfoStatusEnum} statusEnum
+ */
+function updateAddressInfoStatus(statusEnum) {
+    if (statusEnum == "success") {
+        IPandPortElement.classList.remove("error", "warning");
+    } else if (statusEnum == "warning") {
+        IPandPortElement.classList.remove("error");
+        IPandPortElement.classList.add("warning");
+    } else if (statusEnum == "error") {
+        IPandPortElement.classList.remove("warning");
+        IPandPortElement.classList.add("error");
+    } else {
+        console.error("updateAddressWError unknown statusEnum", statusEnum);
+    }
+}
+
+let previousRootContentMD5 = null;
+const fileListElement = document.getElementById('fileList');
+function updateFiles(rootContentObject, rootContentMD5, allowDeletion) {
     // console.log("rootContentObject", rootContentObject);
 
     if (
@@ -49,20 +55,21 @@ var updateFiles = function (rootContentObject, rootContentMD5, allowDeletion) {
     }
 
     if (!(rootContentObject instanceof Object)) {
-        fileList.innerHTML = "";
+        fileListElement.innerHTML = "";
         return;
     }
 
-    fileList.innerHTML = recursiveContentHTML(rootContentObject, allowDeletion);
+    fileListElement.innerHTML = generateHTMLFromContentRecursive(rootContentObject, allowDeletion);
 
     previousRootContentMD5 = rootContentMD5;
 }
+
 /**
  * @param {Content} contentObject
  * @param {boolean} allowDeletion
+ * //TODO(baris) do this with document.createElement ? Use Virtual DOM instead ???
  */
-var recursiveContentHTML = function (contentObject, allowDeletion) {
-    // //TODO(baris) do this with document.createElement
+function generateHTMLFromContentRecursive(contentObject, allowDeletion) {
     let strArray = [];
 
     if (contentObject.folder) {
@@ -72,7 +79,7 @@ var recursiveContentHTML = function (contentObject, allowDeletion) {
         }
 
         strArray.push(...contentObject.contents.map((childContentObject) => {
-            return recursiveContentHTML(childContentObject, allowDeletion);
+            return generateHTMLFromContentRecursive(childContentObject, allowDeletion);
         }));
 
         if (contentObject.path != "") {
@@ -89,116 +96,170 @@ var recursiveContentHTML = function (contentObject, allowDeletion) {
     return strArray.join('');
 }
 
-function arrayEquals(ar1, ar2) {
-    if (ar1 == null) {
-        return ar2 == null;
-    }
-    if (ar2 == null) {
-        return ar1 == null;
-    }
-    if (ar1.length != ar2.length) {
-        return false;
-    } else {
-        for (let index = 0; index < ar1.length; index++) {
-            if (ar1[index] != ar2[index]) return false;
-        }
-        return true;
-    }
-}
-
-var deleteFile = function (fileName) {
+function deleteFile(fileName) {
     if (!confirm("Are you sure?")) return;
-    var request = new XMLHttpRequest()
+    const request = new XMLHttpRequest()
     request.open('GET', `./f/del/` + fileName, true)
     request.send();
 }
 
-var getServerInfo = function (callback) {
-    var request = new XMLHttpRequest();
-    request.open('GET', '/info', true);
-
-    request.onload = function () {
-        if (request.status >= 200 && request.status < 400) {
-            // Success!
-            var resp = request.responseText;
-            var data = JSON.parse(resp);
-            if ("addresses" in data && "port" in data) {
-                updateAddress(data["addresses"], data["port"]);
-            }
-            if ("rootContent" in data) {
-                updateFiles(data["rootContent"], data["rootContentMD5"], data["allowDeletion"]);
-            }
-        } else {
-            updateAddressWError(true);
-            console.error(request);
-        }
-    };
-
-    request.onerror = function () {
-        updateAddressWError(false);
-        console.error(request);
-    };
-
-    request.send();
+class ServerError extends Error {
+    /**
+     * @param {XMLHttpRequest} request
+     */
+    constructor(request) {
+        super();
+        this.request = request;
+        this.name = "ServerError";
+    }
+}
+class ConnectionError extends Error {
+    /**
+     * @param {XMLHttpRequest} request
+     */
+    constructor(request) {
+        super();
+        this.request = request;
+        this.name = "ConnectionError";
+    }
 }
 
-getServerInfo();
-setInterval(function () {
-    getServerInfo();
-}, 2000);
+/**
+ * @param {string} [oldMD5=null]
+ * @returns {Promise<ServerInfoResult>}
+ */
+function getServerInfo(oldMD5 = null) {
+    return new Promise((resolve, reject) => {
+        const request = new XMLHttpRequest();
+        const URL = (oldMD5 != null ? `/info?md5=${encodeURIComponent(oldMD5)}` : '/info');
+        request.open('GET', URL, true);
 
+        request.onload = function () {
+            if (request.status >= 200 && request.status < 400) {
+                const data = JSON.parse(request.responseText);
+                resolve(data);
+            } else {
+                console.error("getServerInfo server error", request);
+                reject(new ServerError(request));
+            }
+        };
+        request.onerror = function () {
+            console.error("getServerInfo connection error", request);
+            reject(new ConnectionError(request));
+        };
+
+        request.send();
+    })
+}
+
+function refreshInfoOnPage() {
+    return getServerInfo().then((infoResult) => {
+        const { addresses, port, rootContent, rootContentMD5, allowDeletion } = infoResult;
+
+        if (
+            (addresses != null && (addresses instanceof Array)) &&
+            (port != null && !isNaN(port))
+        ) {
+            updateAddressInfo(addresses, port);
+            updateAddressInfoStatus("success");
+        }
+
+        if (rootContent != null) {
+            updateFiles(rootContent, rootContentMD5, allowDeletion);
+        }
+
+    }, (error) => {
+        if (error instanceof ServerError) {
+            updateAddressInfoStatus("warning");
+        } else if (error instanceof ServerError) {
+            updateAddressInfoStatus("error");
+        } else {
+            console.error("refreshInfoOnPage error", error);
+        }
+    }).then(() => {
+        setTimeout(() => {
+            refreshInfoOnPage();
+        }, 1000);
+    })
+}
+refreshInfoOnPage();
 
 /* Query based upload success error stuff */
 
-var queryText = location.search;
+/** @type {URLSearchParams|Map<string, string>} */
+let TheURLSearchParams = null;
+try {
+    let theURL = new URL(location.href);
+    TheURLSearchParams = theURL.searchParams;
+} catch (error) {
+    console.error("URL parse error", error);
+}
+if (TheURLSearchParams == null) { // Dirty hack polyfill.
+    try {
+        /** @type {Array<[string, string]>} */
+        let parts;
+        if (location.search != null) {
+            parts = (location.search.substring(1)).split("&").map((pairStr) => {
+                let [key, rawValue] = pairStr.split("=");
+                return [
+                    key,
+                    (
+                        rawValue != null ?
+                            decodeURIComponent(rawValue) :
+                            null
+                    )
+                ];
+            });
+        } else {
+            parts = [];
+        }
+        TheURLSearchParams = new Map(parts);
+    } catch (error) {
+        console.error("Manuel TheURLSearchParams parse error", error);
+    }
+}
 
-//Clearing query.
-window.history.pushState('obj', document.title, "http://" + location.host + location.pathname);
+function clearSearchQuery() {
+    window.history.replaceState('obj', document.title, "http://" + location.host + location.pathname);
+}
 
-//TODO do this properly
-var successIndex = queryText.startsWith("?success=");
-if (successIndex) {
-    var successPanel = document.getElementById('successPanel');
-    if (successPanel) successPanel.className = successPanel.className.replace("hidden", "");
-
-    var fileSuccessName = document.getElementById('fileSuccessName');
-    fileSuccessName.innerText = decodeURIComponent(queryText.substring(9));
-
-} else if (queryText.startsWith("?error=")) {
-    var errorPanel = document.getElementById('errorPanel');
-    if (errorPanel) errorPanel.className = errorPanel.className.replace("hidden", "");
+if (TheURLSearchParams.has("success")) {
+    document.getElementById('successPanel').classList.remove("hidden");
+    document.getElementById('fileSuccessName').innerText = decodeURIComponent(TheURLSearchParams.get("success"));
+    clearSearchQuery();
+} else if (TheURLSearchParams.has("error")) {
+    document.getElementById('errorPanel').classList.remove("hidden");
+    clearSearchQuery();
 }
 
 /* Drag n Drop Upload */
 
-var holder = document.body;
-var fileToUploadButton = document.getElementById('fileToUploadButton');
+const dragDropHolder = document.body;
+const fileToUploadButton = document.getElementById('fileToUploadButton');
 
-holder.ondragover = function (e) {
+dragDropHolder.ondragover = function (e) {
     e.preventDefault();
     e.stopPropagation();
-    var x = e.pageX;
-    var y = e.pageY;
 
     fileToUploadButton.style.position = "fixed";
-    fileToUploadButton.style.top = (y - 11) + "px";
-    fileToUploadButton.style.left = (x - 40) + "px";
+    fileToUploadButton.style.top = (e.pageY - 11) + "px";
+    fileToUploadButton.style.left = (e.pageX - 40) + "px";
 
 };
 
-var fixButtonBack = function () { fileToUploadButton.style.position = "static"; }
-holder.ondragend = fixButtonBack;
-holder.ondragexit = fixButtonBack;
-holder.ondragleave = function (e) {
+const fixButtonBack = function () { fileToUploadButton.style.position = "static"; }
+dragDropHolder.ondragend = fixButtonBack;
+dragDropHolder.ondragexit = fixButtonBack;
+dragDropHolder.ondragleave = function (e) {
     //console.log("holder.ondragleave",e);
-    if (e.target == fileToUpload
+    if (e.target == fileToUploadInputElement
         || e.pageX <= 10 || e.pageX >= window.innerWidth - 10
         || e.pageY <= 10 || e.pageY >= window.innerHeight - 10) {
         fixButtonBack();
     }
 }
-holder.ondrop = function (e) {
-    if (e.target != fileToUpload) {
+dragDropHolder.ondrop = function (e) {
+    if (e.target != fileToUploadInputElement) {
         e.preventDefault();
     }
     fixButtonBack();
@@ -206,10 +267,10 @@ holder.ondrop = function (e) {
 
 /** @type {HTMLInputElement} */
 // @ts-ignore
-var fileToUpload = document.getElementById('fileToUpload');
-fileToUpload.onchange = function (e) {
-    holder.className += " success";
+const fileToUploadInputElement = document.getElementById('fileToUpload');
+fileToUploadInputElement.onchange = function (e) {
+    dragDropHolder.classList.add("success");
     setTimeout(function () {
-        fileToUpload.form.submit();
-    }, 1);
+        fileToUploadInputElement.form.submit();
+    }, 1); // NOTE(baris): Hack for submitting after page rendering with success class.
 }
