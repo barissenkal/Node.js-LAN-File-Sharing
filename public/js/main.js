@@ -8,18 +8,24 @@
 
 const IPandPortElement = document.getElementById('IPandPort');
 const theQRCodeElement = document.getElementById('theQRCode');
+
+let previousIpPortString = null;
 /**
  * @param {Array<string>} addresses
  * @param {number} port
  */
 function updateAddressInfo(addresses, port) {
-    IPandPortElement.innerText = addresses.map(function (address) {
+    const newIpPortString = addresses.map(function (address) {
         return [address, port].join(":");
     }).join(", ");
-    if (addresses.length > 0) {
-        theQRCodeElement.setAttribute("src", `/qr_codes/${addresses[0]}_${port}.png`)
-    } else {
-        theQRCodeElement.setAttribute("src", "");
+    if (previousIpPortString != newIpPortString) {
+        IPandPortElement.innerText = newIpPortString;
+        if (addresses.length > 0) {
+            theQRCodeElement.setAttribute("src", `/qr_codes/${addresses[0]}_${port}.png`)
+        } else {
+            theQRCodeElement.setAttribute("src", "");
+        }
+        previousIpPortString = newIpPortString;
     }
 }
 
@@ -99,7 +105,7 @@ function generateHTMLFromContentRecursive(contentObject, allowDeletion) {
 function deleteFile(fileName) {
     if (!confirm("Are you sure?")) return;
     const request = new XMLHttpRequest()
-    request.open('GET', `./f/del/` + fileName, true)
+    request.open('GET', `./delete/` + encodeURIComponent(fileName), true)
     request.send();
 }
 

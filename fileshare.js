@@ -211,18 +211,18 @@ module.exports = function (conf) {
     //For downloading files
     if (!disable.fileDownload) app.use('/f', express.static(filesFolderPath));
 
-    app.get('/f/del/:filename', function (req, res) {
+    app.get('/delete/:filename', function (req, res) {
+        
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE'); // Just in case
+        res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,contenttype'); // Just in case
+        res.setHeader('Access-Control-Allow-Credentials', "true"); // Just in case
 
         if (allowDeletion) {
-            const filename = req.params.filename;
+            const filename = decodeURIComponent(req.params.filename);
             try {
                 fs.unlinkSync(`./files/` + filename)
-                res.setHeader('Access-Control-Allow-Origin', '*');
-                res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE'); // If needed
-                res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,contenttype'); // If needed
-                res.setHeader('Access-Control-Allow-Credentials', "true"); // If needed
-                res.status(200)
-                //file removed
+                res.sendStatus(200);
             } catch (err) {
                 err.status = 404;
                 res.send(err);
@@ -316,9 +316,9 @@ module.exports = function (conf) {
         }
 
         res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE'); // If needed
-        res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,contenttype'); // If needed
-        res.setHeader('Access-Control-Allow-Credentials', "true"); // If needed
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE'); // Just in case
+        res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,contenttype'); // Just in case
+        res.setHeader('Access-Control-Allow-Credentials', "true"); // Just in case
 
         const addressesPromise = getAddressesWQRCodes(publicPath, port);
         const rootContentPromise = (
@@ -374,7 +374,7 @@ module.exports = function (conf) {
     return {
         "addresses": getAddresses(),
         "app": app,
-        "disable": disable, //For changing later.
+        "disable": disable, // For manual debugging.
         "port": port
     };
 
