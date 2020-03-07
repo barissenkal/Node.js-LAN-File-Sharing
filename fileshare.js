@@ -136,7 +136,7 @@ function lstatPromise(targetPath) {
  * @param  {...any} args
  */
 const logDebug = (
-    true ? //(process.env.NODE_ENV === "debug") ?
+    (process.env.NODE_ENV === "debug") ?
     (msg, ...args) => {console.log(msg, ...args.map(arg => util.inspect(arg, false, 10, true)))} :
     (msg, ...args) => {}
 )
@@ -162,7 +162,9 @@ const logDebug = (
  */
 
 class LiveCache {
-    constructor(filesFolderPath) {
+    constructor(filesFolderPath, orderByTime) {
+        
+        this.orderByTime = orderByTime;
         
         /** @type {LiveCacheFolderContent} */
         const rootContent = {
@@ -192,6 +194,9 @@ class LiveCache {
                 resolve();
             });
         })
+        
+        this._contentOutputJSON = null;
+        this.contentOutputMD5 = null;
         
         /**
          * @param {string} pathStr
@@ -279,28 +284,36 @@ class LiveCache {
         watcher
             .on('add', (path, stats) => {
                 logDebug(`LiveCache: File has been added`, path, stats);
+                this._invalidateOutputCache();
                 addFileToCache(path, stats);
                 logDebug(`LiveCache: rootContent`, rootContent);
             })
             .on('change', (path, stats) => {
                 logDebug(`LiveCache: File has been changed`, path, stats);
+                this._invalidateOutputCache();
                 addFileToCache(path, stats);
                 logDebug(`LiveCache: rootContent`, rootContent);
             })
             .on('unlink', path => {
                 logDebug(`LiveCache: File has been removed`, path);
+                this._invalidateOutputCache();
                 removeFromCache(path);
                 logDebug(`LiveCache: rootContent`, rootContent);
             })
             .on('addDir',  (path, stats) => {
                 logDebug(`LiveCache: Directory has been added`, path, stats);
+                this._invalidateOutputCache();
                 addFolderToCache(path, stats);
                 logDebug(`LiveCache: rootContent`, rootContent);
             })
             .on('unlinkDir', path => {
                 logDebug(`LiveCache: Directory has been removed`, path);
+                this._invalidateOutputCache();
                 removeFromCache(path);
                 logDebug(`LiveCache: rootContent`, rootContent);
+            })
+            .on('error', error => {
+                console.error("LiveCache error:", error);
             })
         
     }
@@ -308,10 +321,9 @@ class LiveCache {
     /**
      * @param {string} baseFolderName
      * @param {LiveCacheFolderContent} baseFolderContent 
-     * @param {boolean} orderByTime
      * @returns {FolderContent}
      */
-    _getContentRecursive(baseFolderName, baseFolderContent, orderByTime) {
+    _getContentRecursive(baseFolderName, baseFolderContent) {
         
         const contentNames = Object.keys(baseFolderContent.contents);
         
@@ -320,7 +332,7 @@ class LiveCache {
         let contents = contentNames.map((contentName) => {
             const content = baseFolderContent.contents[contentName];
             if (content.folder) {
-                return this._getContentRecursive(contentName, content, orderByTime);
+                return this._getContentRecursive(contentName, content);
             } else {
                 /** @type {FileContent} */
                 const fileContent = {
@@ -333,7 +345,7 @@ class LiveCache {
             }
         }).filter(x => x != null);
         
-        if (orderByTime) {
+        if (this.orderByTime) {
             contents = contents.sort((a, b) => {
                 if (a.timestamp == null) return 1;
                 if (b.timestamp == null) return -1;
@@ -351,14 +363,24 @@ class LiveCache {
         }
     }
     
+    _invalidateOutputCache() {
+        this._contentOutputJSON = null;
+        this.contentOutputMD5 = null;
+    }
+    
     /**
-     * @param {boolean} orderByTime
-     * @returns {Promise<FolderContent>}
+     * Returns output content.
+     * @returns {Promise<[FolderContent, string]>} -- [root folder content, md5]
      */
-    getContent(orderByTime=false) {
+    prepContentOutput() {
         return this.contentPrepPromise.then(() => {
-            return this._getContentRecursive(null, this.rootContent, orderByTime);
-        })
+            // NOTE(baris): In class instance cache hit, independent of browser state.
+            if(this.contentOutputMD5 == null) {
+                this._contentOutputJSON = this._getContentRecursive(null, this.rootContent);
+                this.contentOutputMD5 = crypto.createHash('md5').update(JSON.stringify(this._contentOutputJSON)).digest("hex")
+            }
+            return [this._contentOutputJSON, this.contentOutputMD5];
+        });
     }
     
     // TODO(baris): attachUpdateListener
@@ -583,23 +605,24 @@ module.exports = function (conf) {
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE'); // Just in case
         res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,contenttype'); // Just in case
         res.setHeader('Access-Control-Allow-Credentials', "true"); // Just in case
-
+        
         const addressesPromise = getAddressesWQRCodes(publicPath, port);
-        const rootContentPromise = (
-            disable.fileDownload ?
-            Promise.resolve(null) :
-            liveCache.getContent(orderByTime)
-        );
+        
+        /** @type {Promise<[FolderContent, string]>} */
+        let rootContentPromise;
+        if(disable.fileDownload) {
+            rootContentPromise = Promise.resolve([null, null]);
+        } else if(req.query.md5 != null && liveCache.contentOutputMD5 === req.query.md5) {
+            // NOTE(baris): In browser cache hit case. Browser will not update.
+            rootContentPromise = Promise.resolve([null, liveCache.contentOutputMD5]);
+        } else {
+            rootContentPromise = liveCache.prepContentOutput();
+        }
 
         Promise.all([
             addressesPromise,
             rootContentPromise
-        ]).then(([addresses, rootContent]) => {
-
-            let rootContentMD5 = null;
-            if (rootContent != null) {
-                rootContentMD5 = crypto.createHash('md5').update(JSON.stringify(rootContent)).digest("hex");
-            }
+        ]).then(([addresses, [rootContent, rootContentMD5]]) => {
 
             /** @type {ServerInfoResult} */
             const info = {

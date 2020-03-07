@@ -48,26 +48,14 @@ function updateAddressInfoStatus(statusEnum) {
     }
 }
 
-let previousRootContentMD5 = null;
 const fileListElement = document.getElementById('fileList');
 function updateFiles(rootContentObject, rootContentMD5, allowDeletion) {
     // console.log("rootContentObject", rootContentObject);
-
-    if (
-        rootContentMD5 != null &&
-        rootContentMD5 == previousRootContentMD5
-    ) {
-        return;
-    }
-
     if (!(rootContentObject instanceof Object)) {
         fileListElement.innerHTML = "";
         return;
     }
-
     fileListElement.innerHTML = generateHTMLFromContentRecursive(rootContentObject, allowDeletion);
-
-    previousRootContentMD5 = rootContentMD5;
 }
 
 /**
@@ -158,8 +146,9 @@ function getServerInfo(oldMD5 = null) {
     })
 }
 
+let previousRootContentMD5 = null;
 function refreshInfoOnPage() {
-    return getServerInfo().then((infoResult) => {
+    return getServerInfo(previousRootContentMD5).then((infoResult) => {
         const { addresses, port, rootContent, rootContentMD5, allowDeletion } = infoResult;
 
         if (
@@ -170,8 +159,12 @@ function refreshInfoOnPage() {
             updateAddressInfoStatus("success");
         }
 
-        if (rootContent != null) {
+        if (
+            (previousRootContentMD5 == null) ||
+            (previousRootContentMD5 != rootContentMD5)
+        ) {
             updateFiles(rootContent, rootContentMD5, allowDeletion);
+            previousRootContentMD5 = rootContentMD5;
         }
 
     }, (error) => {
