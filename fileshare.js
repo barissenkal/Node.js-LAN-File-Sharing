@@ -8,23 +8,37 @@ const fs = require('fs');
 const os = require('os');
 const qr_image = require("qr-image");
 const crypto = require('crypto');
+const util = require("util");
+const chokidar = require('chokidar');
 
 /** @typedef {import('fs').Stats} FileStats */
 
 /**
- * @typedef Content
- * @property {boolean} folder
- * @property {string} [name]
+ * @typedef FolderContent
+ * @property {true} folder
+ * @property {string} name
  * @property {string} path
- * @property {Array<Content>} [contents]
- * @property {number} [timestamp]
+ * @property {Array<Content>} contents
+ * @property {number} timestamp
+ * // TODO(baris): size
+ */
+/**
+ * @typedef FileContent
+ * @property {false} folder
+ * @property {string} name
+ * @property {string} path
+ * @property {number} timestamp
+ * // TODO(baris): size
+ */
+/**
+ * @typedef {FolderContent|FileContent} Content
  */
 
 /**
  * @typedef ServerInfoResult
  * @property {Array<string>} addresses
  * @property {number} port
- * @property {Content} rootContent
+ * @property {FolderContent} rootContent
  * @property {string} rootContentMD5
  * @property {boolean} allowDeletion
  */
@@ -33,22 +47,26 @@ const crypto = require('crypto');
  * @param {string} targetPath
  * @param {string} basePath
  * @param {string} [name=null]
- * @returns {Promise<Content>}
+ * @returns {Promise<FolderContent>}
  */
 function recursiveReaddir(targetPath, basePath, name = null, orderByTime = false) {
     return readdirPromise(targetPath).then((contentNames) => {
         return Promise.all(contentNames.map((fileOrDirName) => {
             let fileOrDirPath = path.join(targetPath, fileOrDirName);
-            return lstatPromise(fileOrDirPath).then((stats) => {
+            return lstatPromise(fileOrDirPath).then(
+                /** @returns {Content|Promise<Content>} */
+                (stats) => {
                 if (stats.isDirectory()) {
                     return recursiveReaddir(fileOrDirPath, basePath, fileOrDirName);
                 } else if (stats.isFile()) {
-                    return {
+                    /** @type {FileContent} */
+                    const fileContent = {
                         "folder": false,
                         "name": fileOrDirName,
                         "path": path.relative(basePath, fileOrDirPath),
                         "timestamp": Math.max(...[stats.ctimeMs, stats.mtimeMs].filter(x => (x != null)))
                     };
+                    return fileContent;
                 } else {
                     // NOTE(baris): Only handling file and folders
                     return null;
@@ -110,6 +128,250 @@ function lstatPromise(targetPath) {
         });
     });
 }
+
+//
+
+/**
+ * @param {string} msg
+ * @param  {...any} args
+ */
+const logDebug = (
+    true ? //(process.env.NODE_ENV === "debug") ?
+    (msg, ...args) => {console.log(msg, ...args.map(arg => util.inspect(arg, false, 10, true)))} :
+    (msg, ...args) => {}
+)
+
+
+/**
+ * @typedef LiveCacheFolderContent
+ * @property {true} folder
+ * @property {string} path
+ * @property {Object<string, LiveCacheContent>} contents
+ * @property {number} timestamp
+ * // TODO(baris): Sum size of files inside for size?
+ */
+/**
+ * @typedef LiveCacheFileContent
+ * @property {false} folder
+ * @property {string} path
+ * @property {number} timestamp
+ * @property {number} size
+ */
+/**
+ * @typedef {LiveCacheFolderContent|LiveCacheFileContent} LiveCacheContent
+ */
+
+class LiveCache {
+    constructor(filesFolderPath) {
+        
+        /** @type {LiveCacheFolderContent} */
+        const rootContent = {
+            "folder": true,
+            "path": "",
+            "contents": {},
+            "timestamp": null
+        };
+        this.rootContent = rootContent;
+        
+        const watcher = chokidar.watch(filesFolderPath, {
+            cwd: filesFolderPath,
+            ignored: /(^|[\/\\])\../, // ignore dotfiles
+            persistent: true,
+            alwaysStat: true,
+        });
+        this.watcher = watcher;
+        
+        watcher.on('error', error => {
+            logDebug(`LiveCache: error`, error)
+            // TODO(baris): Add error handling.
+        })
+        
+        this.contentPrepPromise = new Promise((resolve) => {
+            watcher.on('ready', () => {
+                logDebug('Initial scan complete. Ready for changes')
+                resolve();
+            });
+        })
+        
+        /**
+         * @param {string} pathStr
+         * @returns {Array<string>}
+         */
+        function splitPath(pathStr) {
+            if(pathStr == '') {
+                return [];
+            } else {
+                return pathStr.split(path.sep);
+            }
+        }
+        
+        /**
+         * @param {string} pathStr
+         * @param {fs.Stats} stats
+         */
+        function addFolderToCache(pathStr, stats) {
+            if(pathStr == "") {
+                rootContent["timestamp"] = Math.max(...[stats.ctimeMs, stats.mtimeMs].filter(x => (x != null)))
+            } else {
+                const pathParts = splitPath(pathStr);
+                const partCount = pathParts.length;
+                
+                let currentDir = rootContent;
+                for (let index = 0; index <= (partCount-2); index++) {
+                    // @ts-ignore
+                    currentDir = currentDir.contents[pathParts[index]];
+                }
+                currentDir.contents[pathParts[partCount-1]] = {
+                    "folder": true,
+                    "path": pathStr,
+                    "contents": {},
+                    // TODO(baris): Double check if valid for folders
+                    "timestamp": Math.max(...[stats.ctimeMs, stats.mtimeMs].filter(x => (x != null)))
+                };
+            }
+        }
+        /**
+         * @param {string} pathStr
+         * @param {fs.Stats} stats
+         * NOTE(baris): Overwrites if in same path.
+         */
+        function addFileToCache(pathStr, stats) {
+            if(pathStr == "") {
+                console.error("addFileToCache root cannot be a file");
+                return;
+            }
+            const pathParts = splitPath(pathStr);
+            const partCount = pathParts.length;
+            
+            let currentDir = rootContent;
+            for (let index = 0; index <= (partCount-2); index++) {
+                // @ts-ignore
+                currentDir = currentDir.contents[pathParts[index]];
+            }
+            currentDir.contents[pathParts[partCount-1]] = {
+                "folder": false,
+                "path": pathStr,
+                "timestamp": Math.max(...[stats.ctimeMs, stats.mtimeMs].filter(x => (x != null))),
+                "size": stats.size
+            }
+            
+        }
+        
+        /**
+         * @param {string} pathStr
+         */
+        function removeFromCache(pathStr) {
+            if(pathStr == "") {
+                console.error("removeFromCache root cannot be removed");
+                return;
+            }
+            const pathParts = splitPath(pathStr);
+            const partCount = pathParts.length;
+            
+            let currentDir = rootContent;
+            for (let index = 0; index <= (partCount-2); index++) {
+                // @ts-ignore
+                currentDir = currentDir.contents[pathParts[index]];
+            }
+            delete currentDir.contents[pathParts[partCount-1]];
+        }
+        
+        watcher
+            .on('add', (path, stats) => {
+                logDebug(`LiveCache: File has been added`, path, stats);
+                addFileToCache(path, stats);
+                logDebug(`LiveCache: rootContent`, rootContent);
+            })
+            .on('change', (path, stats) => {
+                logDebug(`LiveCache: File has been changed`, path, stats);
+                addFileToCache(path, stats);
+                logDebug(`LiveCache: rootContent`, rootContent);
+            })
+            .on('unlink', path => {
+                logDebug(`LiveCache: File has been removed`, path);
+                removeFromCache(path);
+                logDebug(`LiveCache: rootContent`, rootContent);
+            })
+            .on('addDir',  (path, stats) => {
+                logDebug(`LiveCache: Directory has been added`, path, stats);
+                addFolderToCache(path, stats);
+                logDebug(`LiveCache: rootContent`, rootContent);
+            })
+            .on('unlinkDir', path => {
+                logDebug(`LiveCache: Directory has been removed`, path);
+                removeFromCache(path);
+                logDebug(`LiveCache: rootContent`, rootContent);
+            })
+        
+    }
+    
+    /**
+     * @param {string} baseFolderName
+     * @param {LiveCacheFolderContent} baseFolderContent 
+     * @param {boolean} orderByTime
+     * @returns {FolderContent}
+     */
+    _getContentRecursive(baseFolderName, baseFolderContent, orderByTime) {
+        
+        const contentNames = Object.keys(baseFolderContent.contents);
+        
+        if(contentNames.length == 0) return null;
+        
+        let contents = contentNames.map((contentName) => {
+            const content = baseFolderContent.contents[contentName];
+            if (content.folder) {
+                return this._getContentRecursive(contentName, content, orderByTime);
+            } else {
+                /** @type {FileContent} */
+                const fileContent = {
+                    "folder": false,
+                    "name": contentName,
+                    "path": content.path,
+                    "timestamp": content.timestamp
+                }
+                return fileContent;
+            }
+        }).filter(x => x != null);
+        
+        if (orderByTime) {
+            contents = contents.sort((a, b) => {
+                if (a.timestamp == null) return 1;
+                if (b.timestamp == null) return -1;
+                return b.timestamp - a.timestamp;
+            });
+        }
+        
+        return {
+            "folder": true,
+            "name": baseFolderName,
+            "path": baseFolderContent.path,
+            "contents": contents,
+            // TODO(baris): Calculate timestamp from contents?
+            "timestamp": baseFolderContent.timestamp,
+        }
+    }
+    
+    /**
+     * @param {boolean} orderByTime
+     * @returns {Promise<FolderContent>}
+     */
+    getContent(orderByTime=false) {
+        return this.contentPrepPromise.then(() => {
+            return this._getContentRecursive(null, this.rootContent, orderByTime);
+        })
+    }
+    
+    // TODO(baris): attachUpdateListener
+    // TODO(baris): detachUpdateListener
+    
+    destroy() {
+        this.watcher.close().then(() => {
+            logDebug("LiveCache destroy")
+        })
+    }
+}
+
+//
 
 function normalizePort(val) {
     const port = parseInt(val, 10);
@@ -201,6 +463,8 @@ module.exports = function (conf) {
     if (!fs.existsSync(qrCodesPath)) {
         fs.mkdirSync(qrCodesPath);
     }
+    
+    const liveCache = new LiveCache(filesFolderPath);
 
     //New express app
     const app = express();
@@ -323,8 +587,8 @@ module.exports = function (conf) {
         const addressesPromise = getAddressesWQRCodes(publicPath, port);
         const rootContentPromise = (
             disable.fileDownload ?
-                Promise.resolve(null) :
-                recursiveReaddir(filesFolderPath, filesFolderPath, null, orderByTime)
+            Promise.resolve(null) :
+            liveCache.getContent(orderByTime)
         );
 
         Promise.all([

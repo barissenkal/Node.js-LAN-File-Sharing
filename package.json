@@ -10,6 +10,7 @@
   "author": "Baris Senkal <barissenkal@gmail.com> (http://etekmekketcap.com)",
   "license": "ISC",
   "dependencies": {
+    "chokidar": "^3.3.1",
     "express": "^4.14.0",
     "formidable": "^1.1.1",
     "qr-image": "^3.2.0"
