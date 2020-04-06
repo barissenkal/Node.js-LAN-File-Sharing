@@ -43,3 +43,8 @@ public/qr_codes/
 
 # npm package-lock
 package-lock.json
+
+# Forever related
+forever-config.json
+forever.log
+forever_err.log
