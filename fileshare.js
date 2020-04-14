@@ -162,7 +162,7 @@ const logDebug = (
  */
 
 class LiveCache {
-    constructor(filesFolderPath, orderByTime) {
+    constructor(filesFolderPath, orderByTime=true) {
         
         this.orderByTime = orderByTime;
         
@@ -486,7 +486,7 @@ module.exports = function (conf) {
         fs.mkdirSync(qrCodesPath);
     }
     
-    const liveCache = new LiveCache(filesFolderPath);
+    const liveCache = new LiveCache(filesFolderPath, orderByTime);
 
     //New express app
     const app = express();
