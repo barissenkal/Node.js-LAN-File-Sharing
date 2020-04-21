@@ -2,7 +2,7 @@
 "use_strict";
 
 const express = require('express');
-const formidable = require('formidable');
+const {IncomingForm} = require('formidable');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -10,6 +10,20 @@ const qr_image = require("qr-image");
 const crypto = require('crypto');
 const util = require("util");
 const chokidar = require('chokidar');
+
+/**
+ * @typedef FileShareConfig
+ * @property {string} [filesFolderPath]
+ * @property {string} [publicPath]
+ * @property {number} [port]
+ * @property {boolean} [allowDeletion]
+ * @property {function} [progressCallback]
+ * @property {function} [errorCallback]
+ * @property {number} [progressThreshold]
+ * @property {boolean} [orderByTime]
+ * @property {number} [maxFileSize]
+ * @property {{"info": boolean, "fileDownload": boolean}} [disable]
+ */
 
 /** @typedef {import('fs').Stats} FileStats */
 
@@ -451,24 +465,10 @@ function getAddressesWQRCodes(publicPath, port) {
     })).then(() => addresses);
 }
 
-
+/**
+ * @param {FileShareConfig} conf
+ */
 module.exports = function (conf) {
-
-    /*
-      conf = {
-          filesFolderPath:...,
-          publicPath:...,
-          port:...|8080,
-          allowDeletion:false,
-          progressCallback:...,
-          errorCallback:...,
-          progressThreshold:...|10,
-          disable: {
-              fileDownload:...|false,
-              info:...|false
-          }
-      }
-    */
 
     //Getting config from conf.
     let filesFolderPath = conf.filesFolderPath || path.join(__dirname, 'files'),
@@ -479,7 +479,8 @@ module.exports = function (conf) {
         errorCallback = conf.errorCallback || false,
         progressThreshold = conf.progressThreshold || 10,
         orderByTime = conf.orderByTime || true,
-        disable = conf.disable || {};
+        maxFileSize = conf.maxFileSize || (100*1024*1024*1024), // 100GB
+        disable = conf.disable || {"info": false, "fileDownload": false};
 
     let qrCodesPath = path.join(publicPath, "./qr_codes/");
     if (!fs.existsSync(qrCodesPath)) {
@@ -539,7 +540,9 @@ module.exports = function (conf) {
             }
         }
 
-        const form = new formidable.IncomingForm();
+        const form = new IncomingForm();
+        
+        form.maxFileSize = maxFileSize;
 
         form.parse(req);
 
@@ -581,6 +584,7 @@ module.exports = function (conf) {
         });
 
         form.on('error', function (err) {
+            console.error("form error", err);
             res.redirect('/?error=1');
         });
 
