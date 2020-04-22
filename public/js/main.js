@@ -112,7 +112,7 @@ Vue.component('folderItem', {
             v-for="content in contentObject.contents"
             :key="content.path"
             :content="content"
-            :allowDeletion="allowDeletion"
+            :deletion="allowDeletion"
         />
     </div>`,
     props: ["contentObject", "allowDeletion"]
@@ -146,15 +146,15 @@ Vue.component('listItem', {
         <folder-item
             v-if="content.folder"
             :contentObject="content"
-            :allowDeletion="allowDeletion"
+            :allowDeletion="deletion"
         ></folder-item>
         <file-item
             v-if="!content.folder"
             :contentObject="content"
-            :allowDeletion="allowDeletion"
+            :allowDeletion="deletion"
         ></file-item>
     </span>`,
-    props: ["content", "allowDeletion"]
+    props: ["content", "deletion"]
 })
 
 
@@ -185,11 +185,10 @@ Vue.prototype.$deleteFile = deleteFile;
 
 /**
  * @param {Content} rootContentObject
- * @param {string} rootContentMD5
  * @param {boolean} allowDeletion
  */
-function updateFiles(rootContentObject, rootContentMD5, allowDeletion) {
-    console.log("rootContentObject", rootContentObject);
+function updateFiles(rootContentObject, allowDeletion) {
+    console.log("rootContentObject", rootContentObject, allowDeletion);
     if (!(rootContentObject instanceof Object)) {
         fileListVueApp.updateFiles({"contents":[]}, allowDeletion);
         return;
@@ -302,7 +301,7 @@ function refreshInfoOnPage() {
             (previousRootContentMD5 == null) ||
             (previousRootContentMD5 != rootContentMD5)
         ) {
-            updateFiles(rootContent, rootContentMD5, allowDeletion);
+            updateFiles(rootContent, allowDeletion);
             previousRootContentMD5 = rootContentMD5;
         }
 
