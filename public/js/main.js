@@ -66,10 +66,15 @@ const isCollapsedCache = {
                 _path2isCollapsed = {};
             }
         }
-        return _path2isCollapsed[path] || false;
+        return _path2isCollapsed[path] == true;
     },
     set(path, isCollapsed) {
-        _path2isCollapsed[path] = isCollapsed;
+        if(isCollapsed) {
+            _path2isCollapsed[path] = true;
+        } else {
+            // NOTE(baris): No need to store since default state is not collapsed
+            delete _path2isCollapsed[path];
+        }
         
         if(_isCollapsedCacheTimeout != null) clearTimeout(_isCollapsedCacheTimeout);
         
