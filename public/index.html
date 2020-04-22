@@ -56,6 +56,12 @@
         <br>
         
         <div id="fileList">
+          <list-item
+            v-for="content in rootContentObject.contents"
+            :key="content.path"
+            :content="content"
+            :allowDeletion="allowDeletion"
+          />
         </div>
         
       </div>
@@ -67,6 +73,7 @@
     <span class="title noselect">&nbsp;&nbsp;&nbsp;Uploading...</span>
   </div>
   
+  <script src="vue/vue.min.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>

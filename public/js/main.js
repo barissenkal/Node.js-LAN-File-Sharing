@@ -48,14 +48,105 @@ function updateAddressInfoStatus(statusEnum) {
     }
 }
 
-const fileListElement = document.getElementById('fileList');
+
+Vue.component('folderItem', {
+    // created() { console.log("folderItem created");},
+    data () {
+        return {
+            "isCollapsed": false
+        }
+    },
+    template: `<div class="folder-item" :class="{'closed': isCollapsed}">
+        <div class="folder-name" @click="isCollapsed = !isCollapsed">
+            /{{contentObject.path}}
+        </div>
+        <list-item
+            v-for="content in contentObject.contents"
+            :key="content.path"
+            :content="content"
+            :allowDeletion="allowDeletion"
+        />
+    </div>`,
+    props: ["contentObject", "allowDeletion"]
+})
+
+Vue.component('fileItem', {
+    // created() { console.log("fileItem created");},
+    template: `<div class="file-item">
+        <a
+            target="_blank"
+            :href="'./f/' + contentObject.path"
+            class="file-name"
+            download
+        >
+            {{contentObject.name}}
+        </a>
+        <a
+            v-if="allowDeletion"
+            class="file-delete-button"
+            @click="$deleteFile(contentObject.path)"
+        >
+            &times;
+        </a>
+    </div>`,
+    props: ["contentObject", "allowDeletion"]
+})
+
+Vue.component('listItem', {
+    // created() { console.log("listItem created");},
+    template: `<span>
+        <folder-item
+            v-if="content.folder"
+            :contentObject="content"
+            :allowDeletion="allowDeletion"
+        ></folder-item>
+        <file-item
+            v-if="!content.folder"
+            :contentObject="content"
+            :allowDeletion="allowDeletion"
+        ></file-item>
+    </span>`,
+    props: ["content", "allowDeletion"]
+})
+
+
+// TODO(baris): comment
+Vue.config.devtools = true
+
+const fileListVueApp = new Vue({
+    el: '#fileList',
+    data: {
+        rootContentObject: {"contents": []},
+        allowDeletion: false
+    },
+    created() {
+        // ...
+    },
+    methods: {
+        /**
+         * @param {Content} rootContentObject
+         * @param {boolean} allowDeletion
+         */
+        updateFiles(rootContentObject, allowDeletion) {
+            this.rootContentObject = rootContentObject;
+            this.allowDeletion = allowDeletion;
+        },
+    }
+})
+Vue.prototype.$deleteFile = deleteFile;
+
+/**
+ * @param {Content} rootContentObject
+ * @param {string} rootContentMD5
+ * @param {boolean} allowDeletion
+ */
 function updateFiles(rootContentObject, rootContentMD5, allowDeletion) {
-    // console.log("rootContentObject", rootContentObject);
+    console.log("rootContentObject", rootContentObject);
     if (!(rootContentObject instanceof Object)) {
-        fileListElement.innerHTML = "";
+        fileListVueApp.updateFiles({"contents":[]}, allowDeletion);
         return;
     }
-    fileListElement.innerHTML = generateHTMLFromContentRecursive(rootContentObject, allowDeletion);
+    fileListVueApp.updateFiles(rootContentObject, allowDeletion);
 }
 
 /**

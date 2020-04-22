@@ -481,6 +481,8 @@ module.exports = function (conf) {
         orderByTime = conf.orderByTime || true,
         maxFileSize = conf.maxFileSize || (100*1024*1024*1024), // 100GB
         disable = conf.disable || {"info": false, "fileDownload": false};
+        
+    const vueDistPath = path.join(__dirname, "./node_modules/vue/dist");
 
     let qrCodesPath = path.join(publicPath, "./qr_codes/");
     if (!fs.existsSync(qrCodesPath)) {
@@ -494,6 +496,9 @@ module.exports = function (conf) {
 
     //For index. Basically app.get('/',...);
     app.use(express.static(publicPath));
+
+    //For vue.js
+    app.use('/vue', express.static(vueDistPath));
 
     //For downloading files
     if (!disable.fileDownload) app.use('/f', express.static(filesFolderPath));
