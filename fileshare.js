@@ -512,12 +512,24 @@ module.exports = function (conf) {
 
         if (allowDeletion) {
             const filename = decodeURIComponent(req.params.filename);
-            try {
-                fs.unlinkSync(`./files/` + filename)
-                res.sendStatus(200);
-            } catch (err) {
-                err.status = 404;
-                res.send(err);
+            const filesFolderFullPath = path.resolve(filesFolderPath);
+            const fileFullPath = path.join(filesFolderFullPath, filename);
+            // console.log("fileFullPath", fileFullPath);
+            if(
+                fileFullPath != filesFolderFullPath &&
+                fileFullPath.startsWith(filesFolderFullPath)
+            ) {
+                try {
+                    fs.unlinkSync(fileFullPath)
+                    res.sendStatus(200);
+                } catch (error) {
+                    error.status = 404;
+                    console.error("fs.unlinkSync error", error);
+                    res.send();
+                }
+            } else {
+                res.statusCode = 500;
+                res.send("Invalid filename");
             }
         } else {
             res.sendStatus(500);

@@ -229,10 +229,10 @@ function generateHTMLFromContentRecursive(contentObject, allowDeletion) {
     return strArray.join('');
 }
 
-function deleteFile(fileName) {
+function deleteFile(path) {
     if (!confirm("Are you sure?")) return;
     const request = new XMLHttpRequest()
-    request.open('GET', `./delete/` + encodeURIComponent(fileName), true)
+    request.open('GET', `./delete/` + encodeURIComponent(path), true)
     request.send();
 }
 

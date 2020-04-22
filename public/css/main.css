@@ -223,6 +223,7 @@ a:focus {
 }
 
 .file-delete-button {
+    cursor: pointer;
     margin-left: -1.5rem;
     z-index: 2;
 }
