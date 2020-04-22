@@ -48,12 +48,55 @@ function updateAddressInfoStatus(statusEnum) {
     }
 }
 
+/** @type {Object<string, boolean>} */
+let _path2isCollapsed = null;
+let _isCollapsedCacheTimeout = null;
+const isCollapsedCache = {
+    get(path) {
+        if(_path2isCollapsed == null) {
+            let cacheStr = null;
+            try {
+                cacheStr = localStorage.getItem("path2isCollapsed");
+            } catch (error) {
+                console.error("localStorage.getItem error", error);
+            }
+            if(cacheStr != null) {
+                _path2isCollapsed = JSON.parse(cacheStr);
+            } else {
+                _path2isCollapsed = {};
+            }
+        }
+        return _path2isCollapsed[path] || false;
+    },
+    set(path, isCollapsed) {
+        _path2isCollapsed[path] = isCollapsed;
+        
+        if(_isCollapsedCacheTimeout != null) clearTimeout(_isCollapsedCacheTimeout);
+        
+        _isCollapsedCacheTimeout = setTimeout(() => {
+            let cacheStr = JSON.stringify(_path2isCollapsed)
+            try {
+                localStorage.setItem("path2isCollapsed", cacheStr);
+            } catch (error) {
+                console.error("localStorage.getItem error", error);
+            }
+        }, 100);
+    }
+}
 
 Vue.component('folderItem', {
-    // created() { console.log("folderItem created");},
+    created() {
+        // console.log("folderItem created");
+        this.isCollapsed = isCollapsedCache.get(this.contentObject.path);
+    },
     data () {
         return {
-            "isCollapsed": false
+            "isCollapsed": false,
+        }
+    },
+    watch: {
+        "isCollapsed": function () {
+            isCollapsedCache.set(this.contentObject.path, this.isCollapsed);
         }
     },
     template: `<div class="folder-item" :class="{'closed': isCollapsed}">
