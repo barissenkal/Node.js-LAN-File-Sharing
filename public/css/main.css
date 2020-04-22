@@ -190,7 +190,7 @@ a:focus {
     padding: 1px;
 }
 
-.folder-item.closed>.folder-item {
+.folder-item.closed .folder-item {
     display: none;
 }
 
