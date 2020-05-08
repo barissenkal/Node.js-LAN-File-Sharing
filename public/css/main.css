@@ -241,6 +241,7 @@ a:focus {
 @media (prefers-color-scheme: dark) {
     .folder-item {
         border: 2px dashed #aaa;
+        background: rgba(64, 64, 64, 0.2);
     }
 }
 
@@ -269,6 +270,7 @@ a:focus {
 @media (prefers-color-scheme: dark) {
     .file-item {
         border: 2px solid #aaa;
+        background: rgba(64, 64, 64, 0.2);
     }
 }
 
