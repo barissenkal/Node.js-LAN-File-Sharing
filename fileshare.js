@@ -2,7 +2,7 @@
 "use_strict";
 
 const express = require('express');
-const {IncomingForm} = require('formidable');
+const formidable = require('formidable');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -12,12 +12,18 @@ const util = require("util");
 const chokidar = require('chokidar');
 
 /**
+ * @callback FileShareProgressCallback
+ * @param {number} progress
+ * @param {string} fileName
+ */
+
+/**
  * @typedef FileShareConfig
  * @property {string} [filesFolderPath]
  * @property {string} [publicPath]
  * @property {number} [port]
  * @property {boolean} [allowDeletion]
- * @property {function} [progressCallback]
+ * @property {FileShareProgressCallback} [progressCallback]
  * @property {function} [errorCallback]
  * @property {number} [progressThreshold]
  * @property {boolean} [orderByTime]
@@ -475,8 +481,8 @@ module.exports = function (conf) {
         publicPath = conf.publicPath || path.join(__dirname, 'public'),
         port = normalizePort(conf.port || '8080'),
         allowDeletion = conf.allowDeletion === true,
-        progressCallback = conf.progressCallback || false,
-        errorCallback = conf.errorCallback || false,
+        progressCallback = conf.progressCallback,
+        errorCallback = conf.errorCallback,
         progressThreshold = conf.progressThreshold || 10,
         orderByTime = conf.orderByTime || true,
         maxFileSize = conf.maxFileSize || (100*1024*1024*1024), // 100GB
@@ -514,7 +520,7 @@ module.exports = function (conf) {
             const filename = decodeURIComponent(req.params.filename);
             const filesFolderFullPath = path.resolve(filesFolderPath);
             const fileFullPath = path.join(filesFolderFullPath, filename);
-            // console.log("fileFullPath", fileFullPath);
+            logDebug("fileFullPath", fileFullPath);
             if(
                 fileFullPath != filesFolderFullPath &&
                 fileFullPath.startsWith(filesFolderFullPath)
@@ -557,59 +563,83 @@ module.exports = function (conf) {
             }
         }
 
-        const form = new IncomingForm();
+        const form = new formidable.IncomingForm();
         
+        form.uploadDir = filesFolderPath;
+        
+        form.maxFields = 10000;
+        form.multiples = true;
         form.maxFileSize = maxFileSize;
-
-        form.parse(req);
-
-        let finalName,
-            progress;
-
-        form.on('fileBegin', function (_, file) {
-
-            progress = 0;
-
-            let fileName = file.name;
-            let splitted = fileName.split(".");
-            let extension, name;
-            if (splitted.length > 1) {
-                extension = splitted[splitted.length - 1];
-                name = "";
-                for (let i = 0; i < splitted.length - 1; i++) {
-                    name += splitted[i];
-                }
-            } else {
-                extension = "";
-                name = fileName;
-            }
-
-            //For not overwriting files.
-            let i = 0;
-            while (fs.existsSync(path.join(filesFolderPath, fileName))) {
-                fileName = name + " dup" + (i++) + "." + extension;
-            }
-
-            file.path = path.join(filesFolderPath, fileName);
-            file.finalName = fileName;
-            finalName = fileName;
-
-        });
-
-        form.on('file', function (name, file) {
-            res.redirect('/?success=' + encodeURIComponent(file.finalName));
-        });
-
-        form.on('error', function (err) {
-            console.error("form error", err);
-            res.redirect('/?error=1');
-        });
-
+        
+        let progress = 0;
         form.on('progress', function (bytesReceived, bytesExpected) {
             const temp = bytesReceived * 100 / bytesExpected;
             if (temp > progress + progressThreshold) {
                 progress = Math.floor(temp);
-                if (progressCallback) progressCallback(progress, finalName);
+                if (progressCallback) progressCallback(progress, null);
+            }
+        });
+        
+        const foldersCreated = new Map(); // given folder => duplicate handled folder
+        form.on('fileBegin', function (webkitRelativePath, file) {
+            
+            logDebug("fileBegin", webkitRelativePath, file);
+            
+            let {dir:parsedPathDir, name:parsedPathName, ext:parsedPathExt} = path.parse(webkitRelativePath);
+            if(parsedPathDir != "") {
+                // Borrowed from: https://stackoverflow.com/a/41970204
+                parsedPathDir = parsedPathDir.split(path.sep).reduce((currentPath, folder, index) => {
+                    let combinedPath = [currentPath, folder, path.sep].join('');
+                    if(index == 0) {
+                        if(foldersCreated.has(folder)) {
+                            combinedPath = [currentPath, foldersCreated.get(folder), path.sep].join('');
+                        } else {
+                            let i = 0;
+                            let handledFolder = folder;
+                            while(fs.existsSync(path.join(filesFolderPath, combinedPath))) {
+                                handledFolder = [folder, " dup", (i++)].join('');
+                                combinedPath = [currentPath, handledFolder, path.sep].join('');
+                            }
+                            foldersCreated.set(folder, handledFolder);
+                            fs.mkdirSync(path.join(filesFolderPath, combinedPath));
+                        }
+                    } else {
+                        if (!fs.existsSync(path.join(filesFolderPath, combinedPath))) {
+                            logDebug("combinedPath", combinedPath);
+                            fs.mkdirSync(path.join(filesFolderPath, combinedPath));
+                        }
+                    }
+                    return combinedPath;
+                }, '');
+            }
+            
+            let fileName = parsedPathName + parsedPathExt;
+            let filePath = path.join(filesFolderPath, parsedPathDir, fileName);
+            
+            //For not overwriting files.
+            let i = 0;
+            while (fs.existsSync(filePath)) {
+                fileName = [parsedPathName, " dup", (i++), ".", parsedPathExt].join('');
+                filePath = path.join(filesFolderPath, parsedPathDir, fileName);
+            }
+
+            file.path = filePath;
+
+        });
+        
+        form.on('file', function (name, file) {
+            logDebug("file done", name, file);
+            if (progressCallback) progressCallback(null, file.name);
+        });
+
+        form.parse(req, (error, fields, files) => {
+            if(error != null) {
+                console.error("form error", error);
+                res.sendStatus(400);
+            } else {
+                // logDebug("files", files);
+                logDebug("file uploads done");
+                res.sendStatus(200);
             }
         });
 

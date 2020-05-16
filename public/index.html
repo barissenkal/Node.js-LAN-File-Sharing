@@ -34,7 +34,7 @@
           <div id="fileToUploadButtonBox">
             <div id="fileToUploadButton" class="btn btn-primary">
               <span class="button-text">Choose File</span>
-              <input type="file" name="fileToUpload" id="fileToUpload">
+              <input type="file" name="fileToUpload" id="fileToUpload" multiple webkitdirectory mozdirectory>
             </div>
           </div>
         </form>
@@ -70,7 +70,7 @@
   
   
   <div id="successoverlay">
-    <span class="title noselect">&nbsp;&nbsp;&nbsp;Uploading...</span>
+    <span class="title noselect" id="progressMessage">...</span>
   </div>
   
   <script src="vue/vue.min.js"></script>

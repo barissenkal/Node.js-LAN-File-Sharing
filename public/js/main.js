@@ -402,12 +402,69 @@ dragDropHolder.ondrop = function (e) {
     fixButtonBack();
 }
 
+function handleFileUploadRequestEvents(eventName, event) {
+    console.log("handleFileUploadRequestEvents", eventName);
+    if(
+        eventName == "load" ||
+        eventName == "abort" ||
+        eventName == "error" ||
+        eventName == "timeout"
+    ) {
+        dragDropHolder.classList.remove("success");
+        fileToUploadInputElement.value = "";
+    }
+    if(
+        eventName == "abort" ||
+        eventName == "error" ||
+        eventName == "timeout"
+    ) {
+        // TODO(baris): Display error message
+    }
+}
+
+/** @type {HTMLInputElement} */
+// @ts-ignore
+const progressMessageDiv = document.getElementById('progressMessage');
+
 /** @type {HTMLInputElement} */
 // @ts-ignore
 const fileToUploadInputElement = document.getElementById('fileToUpload');
 fileToUploadInputElement.onchange = function (e) {
+    const files = Array.from(fileToUploadInputElement.files);
+    console.log("fileToUploadInputElement.onchange files", files);
+    
     dragDropHolder.classList.add("success");
-    setTimeout(function () {
-        fileToUploadInputElement.form.submit();
-    }, 1); // NOTE(baris): Hack for submitting after page rendering with success class.
+    
+    const uploadRequest = new XMLHttpRequest();
+    uploadRequest.open('POST', "/", true);
+    
+    uploadRequest.addEventListener('readystatechange', (event) => {handleFileUploadRequestEvents('readystatechange', event)});
+    uploadRequest.addEventListener('load', (event) => {handleFileUploadRequestEvents('load', event)});
+    uploadRequest.addEventListener('abort', (event) => {handleFileUploadRequestEvents('abort', event)});
+    uploadRequest.addEventListener('error', (event) => {handleFileUploadRequestEvents('error', event)});
+    uploadRequest.addEventListener('timeout', (event) => {handleFileUploadRequestEvents('timeout', event)});
+    
+    uploadRequest.upload.addEventListener('progress', (event) => {
+        if(event.lengthComputable) {
+            const percent = Math.floor((event.loaded / event.total) * 100);
+            console.log('progress', percent);
+            progressMessageDiv.innerText = percent + "%";
+        } else {
+            console.log('progress', uploadRequest);
+            progressMessageDiv.innerHTML = "&nbsp;&nbsp;&nbsp;Uploading...";
+        }
+    });
+    
+    const formData = new FormData();
+    for (let index = 0; index < files.length; index++) {
+        const file = files[index];
+        const filePath = (
+            file.webkitRelativePath != null ?
+            file.webkitRelativePath :
+            file.name
+        )
+        formData.append(filePath, file);
+    }
+    
+    uploadRequest.send(formData);
 }

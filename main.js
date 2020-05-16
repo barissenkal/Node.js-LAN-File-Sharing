@@ -3,9 +3,13 @@ var fileShare = require('./fileshare')({
     filesFolderPath: (process.argv[3] || null),
     port: (process.argv[2] || process.env.PORT),
     allowDeletion: false,
-    progressCallback: function (progress, fileName) {
+    progressCallback: function (progress, doneFileName) {
         //TODO: connect to UI when writing the electron app.
-        console.log("Progress: " + fileName + " " + Math.floor(progress) + "%");
+        if(progress != null) {
+            console.log("Progress: " + Math.floor(progress) + "%");
+        } else {
+            console.log("Done file", doneFileName);
+        }
     },
     errorCallback: function (url, err) {
         if (err.status == 404) {
