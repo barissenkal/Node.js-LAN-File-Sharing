@@ -360,14 +360,14 @@ function clearSearchQuery() {
     window.history.replaceState('obj', document.title, "http://" + location.host + location.pathname);
 }
 
-if (TheURLSearchParams.has("success")) {
-    document.getElementById('successPanel').classList.remove("hidden");
-    document.getElementById('fileSuccessName').innerText = decodeURIComponent(TheURLSearchParams.get("success"));
-    clearSearchQuery();
-} else if (TheURLSearchParams.has("error")) {
-    document.getElementById('errorPanel').classList.remove("hidden");
-    clearSearchQuery();
-}
+// if (TheURLSearchParams.has("success")) {
+//     document.getElementById('successPanel').classList.remove("hidden");
+//     document.getElementById('fileSuccessName').innerText = decodeURIComponent(TheURLSearchParams.get("success"));
+//     clearSearchQuery();
+// } else if (TheURLSearchParams.has("error")) {
+//     document.getElementById('errorPanel').classList.remove("hidden");
+//     clearSearchQuery();
+// }
 
 /* Drag n Drop Upload */
 
@@ -402,6 +402,8 @@ dragDropHolder.ondrop = function (e) {
     fixButtonBack();
 }
 
+const errorPanelDiv = document.getElementById('errorPanel')
+
 function handleFileUploadRequestEvents(eventName, event) {
     console.log("handleFileUploadRequestEvents", eventName);
     if(
@@ -418,7 +420,7 @@ function handleFileUploadRequestEvents(eventName, event) {
         eventName == "error" ||
         eventName == "timeout"
     ) {
-        // TODO(baris): Display error message
+        errorPanelDiv.classList.remove("hidden");
     }
 }
 
@@ -434,6 +436,7 @@ fileToUploadInputElement.onchange = function (e) {
     console.log("fileToUploadInputElement.onchange files", files);
     
     dragDropHolder.classList.add("success");
+    errorPanelDiv.classList.add("hidden");
     
     const uploadRequest = new XMLHttpRequest();
     uploadRequest.open('POST', "/", true);
