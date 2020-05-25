@@ -462,7 +462,7 @@ fileToUploadInputElement.onchange = function (e) {
     for (let index = 0; index < files.length; index++) {
         const file = files[index];
         const filePath = (
-            file.webkitRelativePath != null ?
+            (file.webkitRelativePath != null && file.webkitRelativePath != "") ?
             file.webkitRelativePath :
             file.name
         )
