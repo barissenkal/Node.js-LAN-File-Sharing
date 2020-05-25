@@ -471,3 +471,8 @@ fileToUploadInputElement.onchange = function (e) {
     
     uploadRequest.send(formData);
 }
+
+// NOTE(baris); Bug fix for Firefox's implementation not allowing user to select files
+if (navigator.userAgent.indexOf("Firefox") > 0) {
+    fileToUploadInputElement.removeAttribute("webkitdirectory")
+}
