@@ -284,10 +284,12 @@ function getServerInfo(oldMD5 = null) {
     })
 }
 
+let multiUploadFileInput = false;
+let folderUploadFileInput = false;
 let previousRootContentMD5 = null;
 function refreshInfoOnPage() {
     return getServerInfo(previousRootContentMD5).then((infoResult) => {
-        const { addresses, port, rootContent, rootContentMD5, allowDeletion } = infoResult;
+        const { addresses, port, rootContent, rootContentMD5, allowDeletion, multiUpload, folderUpload } = infoResult;
 
         if (
             (addresses != null && (addresses instanceof Array)) &&
@@ -304,6 +306,23 @@ function refreshInfoOnPage() {
             updateFiles(rootContent, allowDeletion);
             previousRootContentMD5 = rootContentMD5;
         }
+        
+        if(multiUpload && !multiUploadFileInput) {
+            multiUploadFileInput = true;
+            fileToUploadInputElement.addAttribute("multiple");
+        } else if(!multiUpload && multiUploadFileInput) {
+            multiUploadFileInput = false;
+            fileToUploadInputElement.removeAttribute("multiple");
+        }
+        
+        if(folderUpload && !folderUploadFileInput) {
+            folderUploadFileInput = true;
+            fileToUploadInputElement.addAttribute("webkitdirectory");
+        } else if(!folderUpload && folderUploadFileInput) {
+            folderUploadFileInput = false;
+            fileToUploadInputElement.removeAttribute("webkitdirectory");
+        }
+        
 
     }, (error) => {
         if (error instanceof ServerError) {
@@ -470,9 +489,4 @@ fileToUploadInputElement.onchange = function (e) {
     }
     
     uploadRequest.send(formData);
-}
-
-// NOTE(baris); Bug fix for Firefox's implementation not allowing user to select files
-if (navigator.userAgent.indexOf("Firefox") > 0) {
-    fileToUploadInputElement.removeAttribute("webkitdirectory")
 }

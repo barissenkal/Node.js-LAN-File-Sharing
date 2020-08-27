@@ -23,6 +23,8 @@ const chokidar = require('chokidar');
  * @property {string} [publicPath]
  * @property {number} [port]
  * @property {boolean} [allowDeletion]
+ * @property {boolean} [multiUpload]
+ * @property {boolean} [folderUpload]
  * @property {FileShareProgressCallback} [progressCallback]
  * @property {function} [errorCallback]
  * @property {number} [progressThreshold]
@@ -61,6 +63,8 @@ const chokidar = require('chokidar');
  * @property {FolderContent} rootContent
  * @property {string} rootContentMD5
  * @property {boolean} allowDeletion
+ * @property {boolean} multiUpload
+ * @property {boolean} folderUpload
  */
 
 /**
@@ -481,6 +485,8 @@ module.exports = function (conf) {
         publicPath = conf.publicPath || path.join(__dirname, 'public'),
         port = normalizePort(conf.port || '8080'),
         allowDeletion = conf.allowDeletion === true,
+        multiUpload = conf.multiUpload === true,
+        folderUpload = conf.folderUpload === true,
         progressCallback = conf.progressCallback,
         errorCallback = conf.errorCallback,
         progressThreshold = conf.progressThreshold || 10,
@@ -680,6 +686,8 @@ module.exports = function (conf) {
                 "addresses": addresses,
                 "port": port,
                 "allowDeletion": allowDeletion,
+                "multiUpload": multiUpload,
+                "folderUpload": folderUpload,
                 "rootContent": rootContent,
                 "rootContentMD5": rootContentMD5
             };
